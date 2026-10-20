@@ -1,0 +1,9 @@
+data/*.sqlite
+data/*.sqlite-*
+data/backups/
+*.log
+.DS_Store
+
+.env
+.env.*
+!.env.example

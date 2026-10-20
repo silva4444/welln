@@ -1,0 +1,49 @@
+/* Ajustes da versão para celular. As regras do desktop continuam intactas. */
+@media (max-width:900px) {
+  .app-shell.is-locked > .mobile-nav { display:none!important; }
+  .mobile-nav { bottom:calc(7px + env(safe-area-inset-bottom)); grid-template-columns:repeat(5,minmax(0,1fr)); }
+  .mobile-nav button { min-height:55px; touch-action:manipulation; }
+  .mobile-nav button small { font-size:inherit; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+  .content { padding-bottom:calc(105px + env(safe-area-inset-bottom)); }
+  .sidebar { padding-bottom:calc(20px + env(safe-area-inset-bottom)); }
+  .tutor-chat { bottom:calc(85px + env(safe-area-inset-bottom)); max-height:calc(100dvh - 105px - env(safe-area-inset-bottom)); }
+  .hero, .esp-workspace, .ar-hero { grid-template-columns:minmax(0,1fr); }
+  .hero { gap:16px; padding-block:28px; }
+  .hero-copy, .learning-card, .esp-panel, .lab-app, .lab-main, .editor, .output { min-width:0; }
+  .lab-app { overflow:hidden; }
+  .lab-main { min-height:0; }
+  .code-wrap { height:clamp(290px,48dvh,480px); }
+  .esp-scene { height:clamp(340px,58dvh,520px); touch-action:none; overflow:hidden; }
+  .esp-mode-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .esp-mode-tabs button { min-width:0; }
+  .esp-projects, .activity-order { overflow-x:auto; }
+  .mobile-ar-intro { flex-direction:column; align-items:stretch; }
+  .mobile-ar-intro .primary { width:100%; }
+  .mobile-ar-steps { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:600px) {
+  .login-screen { min-height:100dvh; }
+  .login-screen .login-visual { padding:20px 18px 12px; min-height:0; }
+  .login-screen .login-copy, .login-screen .login-orbit, .login-screen .login-features { display:none; }
+  .login-screen .login-panel { padding:10px 14px max(24px,env(safe-area-inset-bottom)); }
+  .login-screen .login-card { width:100%; margin:0 auto; padding:20px 16px; }
+  .login-screen .portal-switch button { font-size:max(12px,calc(12px * var(--access-scale,1))); min-height:46px; }
+  .login-screen .login-card input:not([type="checkbox"]) { font-size:16px; }
+  .hero h1 { overflow-wrap:anywhere; }
+  .hero-actions, .page-heading, .lab-top-actions, .device-actions, .ar-actions { flex-wrap:wrap; }
+  .hero-actions > button, .lab-top-actions > button { flex:1 1 140px; }
+  .lab-bar { flex-wrap:wrap; gap:8px; }
+  .lab-bar label, .lab-bar select { max-width:100%; }
+  .lab-mobile-tabs button { min-height:48px; }
+  .output iframe, .output pre { height:min(48dvh,420px); }
+  .esp-signal-lab, .mobile-ar-steps { grid-template-columns:minmax(0,1fr); }
+  .scene-controls { flex-wrap:wrap; }
+  .esp-mode-tabs button { min-height:68px; }
+  .esp-mode-tabs small { line-height:1.25; }
+  .mobile-ar-controls { bottom:calc(12px + env(safe-area-inset-bottom)); }
+  .topbar { min-height:62px; height:auto; padding-block:6px; }
+  .search kbd { display:none; }
+  .tutor-chat { height:calc(100dvh - 105px - env(safe-area-inset-bottom)); }
+  .chat-button { bottom:calc(84px + env(safe-area-inset-bottom)); }
+  :is(.admin-card,.platform-card,.teacher-editor,.lesson-reader) { min-width:0; overflow-wrap:anywhere; }
+}

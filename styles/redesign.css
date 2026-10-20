@@ -1,0 +1,148 @@
+/* CODA 11: camada de redesign (menu em trilho, menos ruído, tipografia legível). Carrega por último. */
+:root{--sidebar:72px;--font:Manrope,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+body,button,input,textarea,select{font-family:var(--font)}
+/* Menu lateral em trilho: 72px, expande ao passar o mouse ou focar */
+.sidebar{width:72px;padding:16px 12px;overflow:hidden;transition:width .22s ease,box-shadow .22s}
+.sidebar:hover,.sidebar:focus-within{width:248px;box-shadow:12px 0 40px rgba(0,0,0,.18)}
+.brand{padding:0 4px 18px}
+.brand>span:last-child,.nav button span,.profile>div,.profile-tools,.logout-button{opacity:0;width:0;overflow:hidden;white-space:nowrap;transition:opacity .15s}
+.sidebar:hover :is(.brand>span:last-child,.nav button span,.profile>div,.profile-tools,.logout-button),
+.sidebar:focus-within :is(.brand>span:last-child,.nav button span,.profile>div,.profile-tools,.logout-button){opacity:1;width:auto}
+.nav{gap:6px}.nav-label,.nav button b:not([id]),#studentClassBadge,.streak-card,.teacher-sidebar-card,.student-greeting,.brand small{display:none!important}
+.nav button{height:48px;padding:0 12px;gap:14px;border-radius:12px}
+.nav button i{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center}
+.nav button i svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.nav button.active{box-shadow:none;background:color-mix(in srgb,var(--role-accent,var(--brand,var(--lime))) 18%,transparent);color:var(--text)}
+.nav button b[id]{background:var(--role-accent,var(--brand,var(--lime)));color:#fff;min-width:18px;text-align:center}
+.nav button b[hidden]{display:none}
+.profile{flex-wrap:wrap;padding:12px 2px 0}.profile-tools{flex-basis:100%;display:flex;gap:8px;align-items:center}
+.sidebar:not(:hover):not(:focus-within) .profile-tools{height:0}
+/* Barra do topo enxuta */
+.topbar{height:60px}.top-actions{gap:10px}
+/* Sub-abas por grupo (substituem 6 itens do menu) */
+.subnav{display:none;gap:6px;padding:20px 0 4px;overflow:auto}
+body:is([data-group=inicio],[data-group=aprender],[data-group=praticar],[data-group=turmas]) .subnav{display:flex}
+.subnav button{display:none;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:8px 14px;font-size:calc(12px * var(--access-scale,1));font-weight:700;cursor:pointer;white-space:nowrap}
+body[data-group=inicio] .subnav [data-g=inicio],body[data-group=aprender] .subnav [data-g=aprender],body[data-group=praticar] .subnav [data-g=praticar],body[data-group=turmas] .subnav [data-g=turmas]{display:inline-flex}
+.subnav button.active{background:var(--role-accent,var(--brand,var(--lime)));border-color:transparent;color:#fff}
+/* Menos poluição */
+.kicker,.hero .eyebrow,.hero-chips,.orbit-card,.section-title p,.platform-card-head .kicker,.student-section-head .kicker{display:none!important}
+.hero{min-height:0;padding:28px 0;gap:4vw}.hero h1{font-size:clamp(30px,3.4vw,46px);margin:0 0 12px}
+.hero-actions{margin:20px 0 0}.dashboard-row{margin:20px 0 36px}.page-heading{padding:28px 0 18px}
+.page-heading p{max-width:560px}
+@media(max-width:850px){.sidebar{width:260px;overflow:auto}.sidebar:hover{width:260px}
+ .brand>span:last-child,.nav button span,.profile>div,.profile-tools,.logout-button{opacity:1;width:auto}.hero{padding:20px 0}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* ---- Correções de tamanho e layout (v11.1) ---- */
+.sidebar .nav button.active,[data-theme] .sidebar .nav button.active{box-shadow:none!important}
+.sidebar .nav button:hover{background:color-mix(in srgb,var(--text) 7%,transparent)}
+/* Títulos de página: menores e sem quebrar os botões de ação */
+.page-heading{flex-wrap:wrap;align-items:flex-end;gap:16px 24px;padding:20px 0 18px}
+.page-heading>div{flex:1 1 320px;min-width:0}
+.page-heading h1{font-size:clamp(26px,2.6vw,36px);line-height:1.15;margin:4px 0 6px}
+.section-title h2{font-size:clamp(20px,2vw,26px)}
+.lab-top-actions,.scene-controls{flex-wrap:wrap}
+.lab-top-actions button,.scene-controls button,.page-heading .secondary,.page-heading .primary{white-space:nowrap;line-height:1.2}
+.catalog-count{flex:0 0 auto}
+/* Sub-abas mais legíveis */
+.subnav{padding:16px 0 0;gap:8px}
+.subnav button{align-items:center;min-height:38px;padding:0 16px;font-size:calc(13px * var(--access-scale,1));line-height:1}
+.subnav button:hover{color:var(--text)}
+/* Ícones do topo (busca e notificações) */
+.search>span svg,.notification-button svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.search>span,.notification-button{display:inline-flex;align-items:center;justify-content:center}
+.notification-button{position:relative}
+/* Perfil: sair ao lado do avatar, sem flutuar */
+.profile{position:relative}.logout-button{margin-left:auto}
+.sidebar:not(:hover):not(:focus-within) .profile{justify-content:center}
+@media(max-width:850px){
+  .hero-actions{flex-direction:column;align-items:stretch;gap:10px;margin-top:18px}
+  .hero-actions button{flex:none;height:auto;min-height:46px;padding:12px 16px}
+  .page-heading h1{font-size:26px}
+  .subnav{padding-top:12px}
+  .chat-button{bottom:calc(88px + env(safe-area-inset-bottom))}
+  .dashboard-row{grid-template-columns:1fr}
+}
+.page-heading>div:first-child{flex:1 1 460px}
+.esp-mode-tabs{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))!important}
+@media(min-width:1100px){.lab-top-actions{flex-wrap:nowrap}}
+
+/* ---- v11.2: bancada de circuitos e quiz adaptativo ---- */
+/* Bug: a classe .led do LED 3D da placa vazava para o card do LED na bancada */
+.circuit-component.led{position:static;width:auto;height:auto;border-radius:14px;background:#101827;box-shadow:0 10px 25px rgba(0,0,0,.22)}
+.circuit-component .part-led{margin-bottom:34px}
+.component-bench{gap:16px}
+/* Biblioteca de componentes e alternância 2D/3D */
+.wiring-palette,.wiring-view-switch{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0}
+.wiring-palette>strong{font-size:calc(14px * var(--access-scale,1));margin-right:2px}
+.wiring-palette>small,.wiring-view-switch>span{font-size:calc(12px * var(--access-scale,1));color:var(--muted);margin-right:10px}
+.wiring-view-switch>span{margin:0 0 0 auto}
+.wiring-palette button,.wiring-view-switch button{display:inline-flex;align-items:baseline;gap:7px;border:1px solid var(--line);border-radius:999px;background:var(--surface-2);color:var(--text);padding:9px 15px;font-size:calc(13px * var(--access-scale,1));font-weight:700;line-height:1.2;cursor:pointer;transition:border-color .15s,background .15s}
+.wiring-palette button{cursor:grab}
+.wiring-palette button em{font-style:normal;font-weight:500;font-size:calc(11px * var(--access-scale,1));color:var(--muted)}
+.wiring-palette button i{display:none}
+.wiring-palette button:hover,.wiring-view-switch button:hover{border-color:var(--role-accent,var(--brand,var(--lime)))}
+.wiring-view-switch button.active{background:var(--role-accent,var(--brand,var(--lime)));border-color:transparent;color:#fff}
+/* Quiz adaptativo */
+.adaptive-check>button,.adaptive-card>button{border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--text);padding:11px 18px;margin:4px 8px 4px 0;font-size:calc(13px * var(--access-scale,1));font-weight:700;cursor:pointer}
+.adaptive-check>button:hover,.adaptive-card>button:hover{border-color:var(--role-accent,var(--brand,var(--lime)))}
+.adaptive-check>button.primary,.adaptive-card>button.primary{background:var(--role-accent,var(--brand,var(--lime)));border-color:transparent;color:#fff}
+.adaptive-options label:has(input:checked){border-color:var(--role-accent,var(--brand,var(--lime)));background:color-mix(in srgb,var(--role-accent,var(--brand,var(--lime))) 14%,var(--surface))}
+.adaptive-options input{accent-color:var(--role-accent,var(--brand,var(--lime)))}
+.adaptive-options label{font-size:calc(14px * var(--access-scale,1))}
+@media(max-width:600px){.component-bench{min-width:0;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.circuit-component{padding:10px}.wiring-view-switch>span{margin-left:0;flex-basis:100%}}
+
+/* ---- v11.3: menos rolagem (aula em etapas, blocos dobráveis, turmas em abas) ---- */
+.lesson-reader{overflow-x:clip!important;overflow-y:visible!important}
+/* Cabeçalho da trilha mais baixo */
+.course-hero{padding:16px 22px;margin:8px 0 14px;gap:16px}
+.course-hero h1{font-size:clamp(22px,2.2vw,30px);margin:2px 0 4px}
+.course-hero p{margin:0;font-size:calc(14px * var(--access-scale,1));display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.course-hero-meta{flex-wrap:wrap;gap:8px}
+/* Resumo da aula em uma linha só */
+.lesson-goals{display:flex!important;flex-wrap:wrap;gap:6px 22px;padding:0!important;margin:10px 0 4px!important;border:0!important;background:none!important}
+.lesson-goals>div{display:flex;align-items:baseline;gap:8px;padding:0!important;border:0!important;background:none!important}
+.lesson-goals>div:not(:nth-child(2)){display:none}
+.lesson-goals small{font-size:calc(11px * var(--access-scale,1));color:var(--muted)}
+.lesson-goals strong{font-size:calc(13px * var(--access-scale,1))}
+/* Abas */
+.lt-tabs{display:flex;gap:6px;position:sticky;top:60px;z-index:6;margin:14px 0 16px;padding:8px 0;overflow-x:auto;background:var(--surface);border-bottom:1px solid var(--line);scrollbar-width:none}
+.lt-tabs::-webkit-scrollbar{display:none}
+.lt-tabs button{flex:1 1 0;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);color:var(--muted);font-size:calc(13px * var(--access-scale,1));font-weight:800;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.lt-tabs button b{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:color-mix(in srgb,var(--text) 10%,transparent);font-size:12px}
+.lt-tabs button:hover{color:var(--text);border-color:var(--role-accent,var(--brand,var(--lime)))}
+.lt-tabs button.active{background:var(--role-accent,var(--brand,var(--lime)));border-color:transparent;color:#fff}
+.lt-tabs button.active b{background:rgba(255,255,255,.25)}
+.lt-tabs .lt-ok{font-style:normal;color:var(--role-accent,var(--brand,var(--lime)));font-weight:900}
+.lt-tabs button.active .lt-ok{color:#fff}
+.lt-panel[hidden]{display:none}
+.lt-panel{animation:lt-in .18s ease}
+@keyframes lt-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.lt-panel>h3:first-child{margin-top:0}
+.lt-next{display:block;margin:22px 0 4px auto;min-height:44px;padding:0 20px;border:0;border-radius:12px;font-weight:800;cursor:pointer}
+/* Blocos longos viram dobráveis */
+.lt-fold{border:1px solid var(--line);border-radius:14px;background:var(--surface);margin:12px 0;overflow:hidden}
+.lt-fold>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;cursor:pointer;list-style:none;font-weight:800;font-size:calc(14px * var(--access-scale,1))}
+.lt-fold>summary::-webkit-details-marker{display:none}
+.lt-fold>summary::after{content:"+";display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--surface-2);font-size:18px;line-height:1}
+.lt-fold[open]>summary::after{content:"−"}
+.lt-fold>summary:hover{background:var(--surface-2)}
+.lt-fold>:not(summary){margin:0 14px 14px}
+/* Turmas em abas */
+.lt-tabs-flat{position:static;background:none;border:0;padding:0;margin:14px 0}
+.lt-tabs-flat button{flex:0 0 auto}
+.lt-grid{display:block!important}
+.lt-grid>.platform-card{display:none}
+.lt-grid>.platform-card.lt-on{display:block}
+/* Celular: lista de aulas vira faixa horizontal e abas mais compactas */
+@media(max-width:900px){
+  .lesson-sidebar{padding:8px}
+  .lesson-sidebar #lessonList{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+  .lesson-sidebar #lessonList::-webkit-scrollbar{display:none}
+  .lesson-sidebar .lesson-link{flex:0 0 210px}
+  .lt-tabs{top:68px}
+  .lt-tabs button{padding:0 12px}
+  .lt-tabs button b{display:none}
+  .lt-next{width:100%}
+}
