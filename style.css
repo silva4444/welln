@@ -18,7 +18,7 @@
 @import url("./styles/responsive.css");
 @import url("./styles/mobile.css?v=10.9.4");
 @import url("./styles/redesign.css?v=11.3.0");
-@import url("./styles/polish.css?v=14.5.0");
+@import url("./styles/polish.css?v=14.6.0");
 
 /* Seleção de dispositivo e modo leve para celular. */
 .device-chooser{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:20px;background:#ede9e2;font-family:Manrope,system-ui,sans-serif}

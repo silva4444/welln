@@ -1,4 +1,4 @@
-# CODA Educacional v14.5.0 — Aprendizagem, sincronização e laboratório VR/RA
+# CODA Educacional v14.6.0 — Aprendizagem, sincronização e laboratório VR/RA
 
 Esta edição mantém as 14 matérias e as 98 aulas da versão de conteúdo. Contas, conteúdo, registros acadêmicos e progresso ficam no banco SQLite do servidor. Quando o servidor é publicado com disco persistente, o aluno acessa a mesma conta em outro computador e recupera o avanço automaticamente.
 
@@ -100,7 +100,7 @@ npm.cmd start
 ## Abrir no Windows com dois cliques
 
 1. Extraia o ZIP.
-2. Abra a pasta extraída do CODA v14.5.
+2. Abra a pasta extraída do CODA v14.6.
 3. Dê dois cliques em `ABRIR-CODA-1-CLIQUE.bat`.
 4. O navegador abrirá em `http://127.0.0.1:8080`.
 

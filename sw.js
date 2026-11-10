@@ -1,15 +1,15 @@
 "use strict";
 
-const CACHE_NAME = "coda-estudos-v14-5-sync-vr";
+const CACHE_NAME = "coda-estudos-v14-6-vr-hands-editor";
 const CORE_FILES = [
   "./index.html",
-  "./style.css?v=14.5.0",
+  "./style.css?v=14.6.0",
   "./public-api.js?v=10.5.0",
   "./platform.js?v=10.2.1",
   "./admin.js?v=10.5.0.3",
   "./lesson-content.js?v=10.2.1",
   "./styles/redesign.css?v=11.3.0",
-  "./styles/polish.css?v=14.5.0",
+  "./styles/polish.css?v=14.6.0",
   "./styles/legacy.css",
   "./styles/base.css",
   "./styles/responsive.css",
@@ -28,12 +28,12 @@ const CORE_FILES = [
   "./dados.json",
   "./banco.json",
   "./manifest.json",
-  "./script.js?v=14.5.0",
+  "./script.js?v=14.6.0",
   "./components/esp32-reference.css?v=14.3.0",
   "./js/utils.js?v=14.0.0",
-  "./js/state.js?v=14.5.0",
+  "./js/state.js?v=14.6.0",
   "./js/analytics.js?v=14.0.0",
-  "./js/workspace-sync.js?v=14.5.0",
+  "./js/workspace-sync.js?v=14.6.0",
   "./js/render/courses.js?v=14.0.0",
   "./js/render/dashboard.js?v=14.0.0",
   "./js/login.js?v=14.0.0",
@@ -49,12 +49,12 @@ const CORE_FILES = [
   "./js/esp32-3d.js?v=14.4.0",
   "./js/circuit-3d.js?v=14.0.0",
   "./js/lesson-videos.js?v=14.0.0",
-  "./js/esp32-ar.js?v=14.5.0",
+  "./js/esp32-ar.js?v=14.6.0",
   "./js/esp32-ar-lab.js?v=14.4.0",
   "./js/esp32-firmware.js?v=14.3.0",
   "./js/tutor.js?v=14.0.0",
   "./js/institution.js?v=14.0.0",
-  "./js/core.js?v=14.5.0",
+  "./js/core.js?v=14.6.0",
   "./js/esp32-runtime.js?v=14.0.0",
   "./js/device-mode.js?v=12.2.0",
   "./js/device-mode.js?v=12.3.0",
@@ -63,7 +63,7 @@ const CORE_FILES = [
   "./js/social-network-v3.js?v=10.9.1",
   "./lesson-content.js?v=10.5.0",
   "./js/redesign.js?v=11.2.0",
-  "./js/lesson-tabs.js?v=14.5.0"
+  "./js/lesson-tabs.js?v=14.6.0"
 ];
 
 self.addEventListener("install", event => {

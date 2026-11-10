@@ -269,7 +269,7 @@ async function handleAuth(req, res, pathname) {
 
 async function handleApi(req, res, url) {
   const { pathname, searchParams } = url;
-  if (pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "14.5.0" });
+  if (pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "14.6.0" });
   const authResult = await handleAuth(req, res, pathname);
   if (authResult !== false) return;
   const session = requireUser(req, res); if (!session) return;
@@ -655,7 +655,7 @@ if (entryArgument && import.meta.url === pathToFileURL(entryArgument).href) {
   const host = environment.HOST || argumentValue("--host") || "127.0.0.1";
   const server = createCodaServer();
   server.listen(port, host, () => {
-    console.log(`CODA v14.5.0 disponível em http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
+    console.log(`CODA v14.6.0 disponível em http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
     console.log(`Banco de dados: ${databasePath}`);
     console.log("Contas administrativas: configuradas somente por variáveis de ambiente.");
   });

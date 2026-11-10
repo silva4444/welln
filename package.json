@@ -1,6 +1,6 @@
 {
   "name": "coda-plataforma-educacional",
-  "version": "14.5.0",
+  "version": "14.6.0",
   "private": true,
   "type": "module",
   "description": "CODA Educacional com sincronização de progresso, laboratório VR/RA WebXR, ESP32 3D e programação Arduino educativa.",

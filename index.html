@@ -6,7 +6,7 @@
   <meta name="description" content="CODA Educacional com progresso sincronizado, portais acadêmicos e laboratório ESP32 em VR/RA.">
   <meta name="theme-color" content="#f7f4ee">
   <meta name="csp-nonce" content="">
-  <title>CODA Educacional | Versão 14.5</title>
+  <title>CODA Educacional | Versão 14.6</title>
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://vlibras.gov.br" crossorigin>
   <link rel="dns-prefetch" href="//vlibras.gov.br">
@@ -345,14 +345,33 @@
                   <button type="button" data-xr-experience="ar" role="radio" aria-checked="false"><span>◉</span><div><strong>Bancada real</strong><small>Passthrough e realidade aumentada</small></div></button>
                 </div>
                 <div class="ar-mode-picker">
-                  <button type="button" class="active" data-ar-mode="view"><span>👓</span><div><strong>Somente visualizar</strong><small>Posicione, observe e caminhe ao redor da placa</small></div></button>
-                  <button type="button" data-ar-mode="lab"><span>🥽</span><div><strong>Laboratório interativo</strong><small>Selecione e mova ESP32, LED e resistor</small></div></button>
+                  <button type="button" data-ar-mode="view"><span>👓</span><div><strong>Somente visualizar</strong><small>Disponível para a bancada em realidade aumentada</small></div></button>
+                  <button type="button" class="active" data-ar-mode="lab"><span>🥽</span><div><strong>Laboratório interativo</strong><small>Agarrar peças, programar e executar dentro do VR</small></div></button>
                 </div>
                 <div class="ar-actions"><button type="button" id="checkAR">Verificar meu óculos</button><button type="button" class="primary" id="enterAR">Entrar no ambiente</button><button type="button" id="exitAR" disabled>Encerrar experiência</button></div>
                 <div class="ar-status" id="arStatus"><span>◎</span><div><strong>Pronto para verificar</strong><small>Selecione VR ou RA e confirme o suporte do navegador do óculos.</small></div></div>
               </article>
-              <aside class="ar-guide"><span class="kicker">COMO USAR</span><h3>Dentro do óculos</h3><ol><li><b>Escolha Ambiente virtual ou Bancada real.</b></li><li><b>Entre no ambiente</b> e autorize o WebXR quando solicitado.</li><li><b>Use as mãos ou controles.</b> Aponte e faça uma pinça/gatilho para selecionar.</li><li><b>No VR</b>, o ESP32 aparece sobre uma mesa virtual completa.</li><li><b>Na RA</b>, olhe para uma superfície e selecione o ponto onde a placa deve ficar.</li></ol></aside>
+              <aside class="ar-guide"><span class="kicker">COMO USAR</span><h3>Dentro do óculos</h3><ol><li><b>Abra pelo Meta Quest Browser</b> e entre no ambiente virtual.</li><li><b>Faça a pinça e mantenha fechada</b> para agarrar o ESP32, LED ou resistor.</li><li><b>Mova a mão</b> e solte a pinça para deixar a peça sobre a mesa.</li><li><b>Use o painel Arduino flutuante</b> para editar, carregar exemplos e executar o código.</li><li><b>Veja o LED responder</b> e acompanhe o monitor serial sem sair do VR.</li></ol></aside>
             </div>
+            <section class="vr-preview-card" aria-labelledby="vrPreviewTitle">
+              <header><div><span class="kicker">PRÉVIA DO QUEST 3</span><h3 id="vrPreviewTitle">Laboratório VR independente e interativo</h3><p>Esta prévia representa o mesmo ambiente carregado dentro do óculos: mesa, ESP32 manipulável, componentes, editor Arduino e teclado virtual.</p></div><div class="vr-capability-badges"><span>✋ Mãos</span><span>⌨ Editor VR</span><span>▶ Simulação</span></div></header>
+              <div class="vr-preview-stage" id="vrPreviewStage" role="img" aria-label="Prévia do laboratório VR com painel de código, teclado virtual, mãos e ESP32 sobre a mesa">
+                <div class="vr-preview-glow"></div><div class="vr-preview-grid"></div>
+                <div class="vr-preview-code"><div class="vr-window-head"><span>sketch.ino</span><b>● EXECUTANDO</b></div><pre><em>1</em> void setup() {
+<em>2</em>   pinMode(2, OUTPUT);
+<em>3</em> }
+<em>4</em> void loop() {
+<em>5</em>   digitalWrite(2, HIGH);
+<em>6</em>   delay(500);
+<em>7</em>   digitalWrite(2, LOW);
+<em>8</em>   delay(500);
+<em>9</em> }</pre><div class="vr-preview-actions"><span>BLINK</span><span>HIGH</span><span>LOW</span><strong>▶ RUN</strong><span>■ STOP</span></div></div>
+                <div class="vr-preview-keyboard"><div>Q W E R T Y U I O P</div><div>A S D F G H J K L</div><div>Z X C V B N M ( ) ;</div><div><b>SPACE</b> <b>ENTER</b> <b>⌫</b></div></div>
+                <div class="vr-preview-table"><div class="vr-preview-board"><i></i><strong>ESP32</strong><small>WROOM-32</small><span></span></div><div class="vr-preview-led"></div><div class="vr-preview-resistor"></div><svg viewBox="0 0 600 180" preserveAspectRatio="none" aria-hidden="true"><path d="M290 80 C365 32 405 96 472 63"/><path d="M286 108 C348 162 410 113 505 130"/></svg></div>
+                <div class="vr-hand vr-hand-left"><i></i><b></b><span></span></div><div class="vr-hand vr-hand-right"><i></i><b></b><span></span></div>
+                <div class="vr-preview-hud"><span>PINÇA: agarrar e mover</span><span>PAINEL: programar no VR</span></div>
+              </div>
+            </section>
             <div class="ar-tools" id="arLabTools" hidden><div class="ar-tool-row"><strong>Peças virtuais</strong><button type="button" id="arImportCircuit">Usar circuito do Programador 3D</button><button type="button" id="arAddLed">＋ LED</button><button type="button" id="arAddResistor">＋ Resistor</button><button type="button" id="arClearComponents">Limpar peças</button></div><div class="ar-component-list" id="arComponentList"></div><div class="ar-tool-row"><strong>Ajuste do ESP32</strong><button type="button" id="arRotateLeft">↶ Girar</button><button type="button" id="arRotateRight">↷ Girar</button><button type="button" id="arScaleDown">− Menor</button><button type="button" id="arScaleUp">＋ Maior</button><span id="arSelectedLabel">Nenhum objeto selecionado</span></div></div>
             <div class="ar-note"><b>Importante:</b> VR/RA precisa de HTTPS e de um navegador WebXR compatível. No Meta Quest 3, abra o link pelo navegador do próprio óculos. No PC comum, os modos 3D, fios e programador continuam disponíveis.</div>
           </section>
@@ -524,8 +543,8 @@
   <script src="admin.js?v=10.5.0.3"></script>
   <script src="js/social-network-v3.js?v=10.9.1"></script>
   <script src="lesson-content.js?v=10.5.0"></script>
-  <script src="script.js?v=14.5.0"></script>
+  <script src="script.js?v=14.6.0"></script>
   <script src="js/redesign.js?v=11.2.0"></script>
-  <script src="js/lesson-tabs.js?v=14.5.0"></script>
+  <script src="js/lesson-tabs.js?v=14.6.0"></script>
 </body>
 </html>

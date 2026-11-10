@@ -22,6 +22,25 @@ test("VR cria sala, mesa e aceita hand tracking",()=>{
   assert.match(xr,/state\.placed=true/);
 });
 
+test("mãos agarram e movem ESP32 continuamente até soltar a pinça",()=>{
+  assert.match(xr,/session\.addEventListener\("selectstart",onSelectStart\)/);
+  assert.match(xr,/session\.addEventListener\("selectend",onSelectEnd\)/);
+  assert.match(xr,/function updateGrabbed\(frame\)/);
+  assert.match(xr,/index-finger-tip/);
+  assert.match(xr,/state\.grabbed=\{source,object,distance:grabDistance\}/);
+  assert.match(xr,/object\.y=\.78/);
+});
+
+test("VR inclui editor Arduino, teclado virtual e execução sem tela externa",()=>{
+  assert.match(html,/Laboratório VR independente e interativo/);
+  assert.match(xr,/CODA_VR_EDITOR/);
+  assert.match(xr,/CODA_VR_KEYBOARD/);
+  assert.match(xr,/coda-vr-sketch-v146/);
+  assert.match(xr,/core\.createRuntime/);
+  assert.match(xr,/runtime\.start\(state\.vrCode\|\|VR_DEMO\)/);
+  assert.match(xr,/activateVRAction/);
+});
+
 test("abas de turma usam semântica e navegação por teclado",()=>{
   const tabs=readFileSync(join(root,"js/lesson-tabs.js"),"utf8");
   assert.match(tabs,/aria-controls="class-panel-/);
