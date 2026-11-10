@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: coda-educacional
+    name: coda-educacional-3d
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm install
+    buildCommand: npm install && npm run check && npm test
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
