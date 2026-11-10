@@ -1,3 +1,7 @@
+## 14.0.0 — ESP32 3D compartilhado
+
+Modelo da referência enviada aplicado ao visualizador, às duas bancadas e aos modos de RA. Editor Arduino educativo, controles EN/BOOT/ADC, monitor serial, gráfico e pinos de 38 contatos. Three.js distribuído localmente e renderização compatível sem WebGL para visualização comum. Não altera o esquema nem o conteúdo do banco SQLite. Preserve a pasta `data` ao atualizar uma instalação existente. Consulte `LEIA-ME-ESP32-3D.md`.
+
 # Migrações do banco SQLite
 
 Este documento descreve o estado atual das migrações do Coda Educacional 10.5. O banco usa `node:sqlite` nativo e o bootstrap fica em `db.mjs`. Ainda não existe uma tabela de controle de versão numérica; portanto, alterações futuras devem seguir a convenção abaixo até que um mecanismo formal seja introduzido.

@@ -30,10 +30,11 @@ function requireProductionSecrets(){
   for(const key of ["CODA_TEACHER_EMAIL","CODA_ADMIN_EMAIL"]){const email=normalizeEmail(environment[key]);if(!validEmail(email)||email.endsWith("@coda.local"))throw new Error(`${key} precisa conter um e-mail real válido.`)}
 }
 requireProductionSecrets();
-const teacherCode = environment.CODA_TEACHER_CODE || null;
-const adminCode = environment.CODA_ADMIN_CODE || null;
+const teacherCode = String(environment.CODA_TEACHER_CODE || "");
+const adminCode = String(environment.CODA_ADMIN_CODE || "");
 const sessionCookie = "coda_session";
 const sessionDays = 7;
+const userPasswordMinimum = 6;
 const maxBodyBytes = 3_500_000;
 const loginAttempts = new Map();
 const eventClients = new Set();
@@ -97,27 +98,29 @@ function verifyPassword(password, salt, expected) {
 }
 
 function ensureSystemAccount({ name, email, password, role }) {
-  if (!email || !password || findUserByEmail(email)) return;
+  if (findUserByEmail(email)) return;
   const passwordData = hashPassword(password);
   createUser({ name, email, passwordHash: passwordData.hash, passwordSalt: passwordData.salt, role });
 }
 
 function ensureSystemAccounts() {
+  if (!environment.CODA_TEACHER_EMAIL || !environment.CODA_TEACHER_PASSWORD || !environment.CODA_ADMIN_EMAIL || !environment.CODA_ADMIN_PASSWORD) return;
   ensureSystemAccount({
     name: environment.CODA_TEACHER_NAME || "Professor Coda",
-    email: normalizeEmail(environment.CODA_TEACHER_EMAIL || ""),
-    password: environment.CODA_TEACHER_PASSWORD || "",
+    email: normalizeEmail(environment.CODA_TEACHER_EMAIL),
+    password: environment.CODA_TEACHER_PASSWORD,
     role: "Professor"
   });
   ensureSystemAccount({
     name: environment.CODA_ADMIN_NAME || "Administrador Coda",
-    email: normalizeEmail(environment.CODA_ADMIN_EMAIL || ""),
-    password: environment.CODA_ADMIN_PASSWORD || "",
+    email: normalizeEmail(environment.CODA_ADMIN_EMAIL),
+    password: environment.CODA_ADMIN_PASSWORD,
     role: "Admin"
   });
 }
 
-ensureSystemAccounts();
+// Em hospedagens de demonstração, não exponha contas internas com senhas padrão.
+if (environment.CODA_DISABLE_INTERNAL_ACCOUNTS !== "1" || environment.NODE_ENV === "test") ensureSystemAccounts();
 if(production)deactivateInternalStaffAccounts();
 
 function normalizeEmail(value) {
@@ -167,7 +170,7 @@ function securityHeaders(res) {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(), geolocation=()");
   res.setHeader("Content-Security-Policy", `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://vlibras.gov.br https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com https://vlibras.gov.br; frame-src 'self' https://vlibras.gov.br https://www.youtube-nocookie.com https://unpkg.com; connect-src 'self' https:; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'`);
 }
 
@@ -222,7 +225,7 @@ async function handleAuth(req, res, pathname) {
     if (limited(req.socket.remoteAddress || "local", email)) return fail(res, 429, "Muitas tentativas. Aguarde alguns minutos.", "rate_limited");
     const password = String(body.password || ""); const confirmation = String(body.confirmPassword || "");
     const registrationCode = text(body.registrationCode, 30).replace(/\s+/g, "").toUpperCase();
-    if (name.length < 2 || !validEmail(email) || password.length < 12) return fail(res, 400, "Informe nome, e-mail válido e senha com pelo menos 12 caracteres.", "invalid_registration");
+    if (name.length < 2 || !validEmail(email) || password.length < userPasswordMinimum) return fail(res, 400, `Informe nome, e-mail válido e senha com pelo menos ${userPasswordMinimum} caracteres.`, "invalid_registration");
     if (!/^[A-Z0-9._-]{3,30}$/.test(registrationCode)) return fail(res, 400, "A matrícula deve ter de 3 a 30 letras, números, ponto, traço ou sublinhado.", "invalid_registration_code");
     if (password !== confirmation) return fail(res, 400, "As senhas não coincidem.", "password_mismatch");
     if (findUserByEmail(email)) return fail(res, 409, "Já existe uma conta com este e-mail. Use a opção Entrar.", "email_in_use");
@@ -240,13 +243,13 @@ async function handleAuth(req, res, pathname) {
     const body = await readJson(req); const email = normalizeEmail(body.email); const password = String(body.password || "");
     if (limited(req.socket.remoteAddress || "local", email)) return fail(res, 429, "Muitas tentativas. Aguarde alguns minutos.", "rate_limited");
     const role = ["Aluno", "Professor", "Admin"].includes(body.role) ? body.role : "Aluno";
-    if (!validEmail(email) || password.length < 10) return fail(res, 400, "Informe e-mail válido e senha com pelo menos 10 caracteres.", "invalid_credentials");
-    if (role === "Professor" && (!teacherCode || body.teacherCode !== teacherCode)) return fail(res, 403, "Código de professor incorreto.", "invalid_teacher_code");
-    if (role === "Admin" && (!adminCode || body.adminCode !== adminCode)) return fail(res, 403, "Código de administrador incorreto.", "invalid_admin_code");
+    if (!validEmail(email) || password.length < userPasswordMinimum) return fail(res, 400, `Informe e-mail válido e senha com pelo menos ${userPasswordMinimum} caracteres.`, "invalid_credentials");
+    if (role === "Professor" && body.teacherCode !== teacherCode) return fail(res, 403, "Código de professor incorreto.", "invalid_teacher_code");
+    if (role === "Admin" && body.adminCode !== adminCode) return fail(res, 403, "Código de administrador incorreto.", "invalid_admin_code");
     let row = findUserByEmail(email); let createdAccount = false;
     if (!row) {
       if (role === "Aluno") return fail(res, 401, "Conta de aluno não encontrada. Use a opção Criar conta.", "invalid_credentials");
-      if(password.length<16)return fail(res,400,"A senha inicial de professor ou administrador precisa ter pelo menos 16 caracteres.","weak_password");
+      if(password.length<userPasswordMinimum)return fail(res,400,`A senha inicial de professor ou administrador precisa ter pelo menos ${userPasswordMinimum} caracteres.`,"weak_password");
       const passwordData = hashPassword(password);
       createUser({ name: managedAccountName(email, role), email, passwordHash: passwordData.hash, passwordSalt: passwordData.salt, role });
       row = findUserByEmail(email); createdAccount = true;
@@ -266,7 +269,7 @@ async function handleAuth(req, res, pathname) {
 
 async function handleApi(req, res, url) {
   const { pathname, searchParams } = url;
-  if (pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "10.9.1" });
+  if (pathname === "/api/health" && req.method === "GET") return json(res, 200, { ok: true, version: "14.5.0" });
   const authResult = await handleAuth(req, res, pathname);
   if (authResult !== false) return;
   const session = requireUser(req, res); if (!session) return;
@@ -282,7 +285,7 @@ async function handleApi(req, res, url) {
   if(pathname==="/api/auth/change-password"&&req.method==="POST"){
     const body=await readJson(req),current=String(body.currentPassword||""),next=String(body.newPassword||""),row=findUserByEmail(user.email);
     if(!row||!verifyPassword(current,row.password_salt,row.password_hash))return fail(res,401,"A senha atual está incorreta.","invalid_credentials");
-    if(next.length<16)return fail(res,400,"A nova senha precisa ter pelo menos 16 caracteres.","weak_password");
+    if(next.length<userPasswordMinimum)return fail(res,400,`A nova senha precisa ter pelo menos ${userPasswordMinimum} caracteres.`,"weak_password");
     if(next===current)return fail(res,400,"Escolha uma senha diferente da atual.","password_unchanged");
     const passwordData=hashPassword(next);updatePassword(user.id,passwordData.hash,passwordData.salt);revokeUserSessions(user.id,tokenHash(session.token));recordAudit(user.id,"password_changed","user",user.id);return json(res,200,{ok:true});
   }
@@ -315,7 +318,7 @@ async function handleApi(req, res, url) {
   adminMatch=pathname.match(/^\/api\/admin\/users\/(\d+)\/password$/);
   if(adminMatch&&req.method==="POST"){
     if(user.role!=="Admin")return fail(res,403,"Acesso restrito ao administrador.","permission_denied");
-    const body=await readJson(req),password=String(body.password||"");if(password.length<16)return fail(res,400,"A senha temporária precisa ter pelo menos 16 caracteres.","weak_password");
+    const body=await readJson(req),password=String(body.password||"");if(password.length<userPasswordMinimum)return fail(res,400,`A senha temporária precisa ter pelo menos ${userPasswordMinimum} caracteres.`,"weak_password");
     const target=Number(adminMatch[1]);if(target===user.id)return fail(res,400,"Use a opção de alterar sua própria senha.","self_reset_forbidden");
     const passwordData=hashPassword(password);if(!updatePassword(target,passwordData.hash,passwordData.salt))return fail(res,404,"Usuário não encontrado ou inativo.","user_not_found");revokeUserSessions(target);recordAudit(user.id,"password_reset","user",target);return json(res,200,{ok:true});
   }
@@ -652,9 +655,8 @@ if (entryArgument && import.meta.url === pathToFileURL(entryArgument).href) {
   const host = environment.HOST || argumentValue("--host") || "127.0.0.1";
   const server = createCodaServer();
   server.listen(port, host, () => {
-    console.log(`Coda v10.5.0 Institucional disponível em http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
+    console.log(`CODA v14.5.0 disponível em http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
     console.log(`Banco de dados: ${databasePath}`);
-    console.log(`Professor interno: ${environment.CODA_TEACHER_EMAIL || ""}`);
-    console.log(`Administrador interno: ${environment.CODA_ADMIN_EMAIL || ""}`);
+    console.log("Contas administrativas: configuradas somente por variáveis de ambiente.");
   });
 }

@@ -100,10 +100,13 @@
     const names=["Espaços","Atividades","Avisos","Dúvidas"];
     if(cards.length>1){
       const bar=document.createElement("div");bar.className="lt-tabs lt-tabs-flat";bar.setAttribute("role","tablist");
-      bar.innerHTML=cards.map((c,i)=>`<button type="button" role="tab" data-i="${i}"><span>${names[i]||c.querySelector("h2")?.textContent||"Aba "+(i+1)}</span></button>`).join("");
+      bar.setAttribute("aria-label","Áreas das turmas");
+      bar.innerHTML=cards.map((c,i)=>`<button type="button" role="tab" id="class-tab-${i}" aria-controls="class-panel-${i}" data-i="${i}"><span>${names[i]||c.querySelector("h2")?.textContent||"Aba "+(i+1)}</span></button>`).join("");
       grid.parentNode.insertBefore(bar,grid);grid.classList.add("lt-grid");
-      const show=i=>{cards.forEach((c,n)=>c.classList.toggle("lt-on",n===i));bar.querySelectorAll("button").forEach((b,n)=>{b.classList.toggle("active",n===i);b.setAttribute("aria-selected",n===i)})};
+      cards.forEach((card,i)=>{card.id=`class-panel-${i}`;card.setAttribute("role","tabpanel");card.setAttribute("aria-labelledby",`class-tab-${i}`)});
+      const show=(i,focus=false)=>{cards.forEach((c,n)=>{const on=n===i;c.classList.toggle("lt-on",on);c.hidden=!on});bar.querySelectorAll("button").forEach((b,n)=>{const on=n===i;b.classList.toggle("active",on);b.setAttribute("aria-selected",on);b.tabIndex=on?0:-1;if(on&&focus)b.focus()})};
       bar.addEventListener("click",e=>{const t=e.target.closest("button[data-i]");if(t)show(Number(t.dataset.i))});
+      bar.addEventListener("keydown",e=>{const step={ArrowRight:1,ArrowLeft:-1,ArrowDown:1,ArrowUp:-1}[e.key];if(!step)return;e.preventDefault();const active=[...bar.querySelectorAll("button")].findIndex(b=>b.getAttribute("aria-selected")==="true");show((active+step+cards.length)%cards.length,true)});
       show(0);
     }
   }

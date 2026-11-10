@@ -1,7 +1,7 @@
 const boardPins = new Set([
   "3V3", "VIN", "GND", "GND_R", "GPIO2", "GPIO4", "GPIO5", "GPIO18", "GPIO19",
   "GPIO16", "GPIO17", "GPIO21", "GPIO22", "GPIO23", "GPIO25", "GPIO26", "GPIO27",
-  "GPIO32", "GPIO33", "GPIO34", "GPIO35"
+  "GPIO32", "GPIO33", "GPIO34", "GPIO35", "GPIO0", "GPIO1", "GPIO3", "GPIO12", "GPIO13", "GPIO14", "GPIO15", "GPIO36", "GPIO39", "GND_R2"
 ]);
 
 const terminalsByType = {
@@ -18,7 +18,7 @@ function endsOf(wire) {
 
 // Two physical ground sockets are drawn on the board. They share one electrical net.
 function electricalNode(value) {
-  return value === "ESP32:GND_R" ? "ESP32:GND" : value;
+  return ["ESP32:GND_R","ESP32:GND_R2"].includes(value) ? "ESP32:GND" : value;
 }
 
 function parseNode(value) {
@@ -72,6 +72,8 @@ function findLedLoop({ components = [], wires = [] }, ledId) {
   if (!led || led.type !== "led") return { ok: false, reason: "LED não encontrado" };
   if (invalidWires.length) return { ok: false, reason: "Há um GPIO que não existe nesta placa ou um terminal inválido" };
 
+  const outputPins = new Set([0,1,2,3,4,5,12,13,14,15,16,17,18,19,21,22,23,25,26,27,32,33]);
+  if(!outputPins.has(Number(String(led.pin||"").replace("GPIO",""))))return {ok:false,reason:"O LED precisa de um GPIO de saída; GPIO34/35/36/39 são somente entrada"};
   const sources = [`ESP32:${led.pin}`];
   for (const battery of components.filter(item => item.type === "battery")) sources.push(`${battery.id}:+`);
   const sinks = ["ESP32:GND", ...components.filter(item => item.type === "battery").map(item => `${item.id}:-`)];
@@ -87,7 +89,7 @@ function findLedLoop({ components = [], wires = [] }, ledId) {
     if (sinks.includes(current.node) && current.usedLed && current.resistorId) {
       const resistor = componentById.get(current.resistorId);
       const voltage = sources.some(source => source.startsWith("ESP32:")) ? 3.3 : 3.3 * Number(components.find(item => item.type === "battery")?.value ?? 100) / 100;
-      const ohms = Math.max(1, Math.round(220 * Number(resistor?.value ?? 100) / 100));
+      const ohms = Math.max(1, Math.round(Number(resistor?.ohms ?? (220 * Number(resistor?.value ?? 100) / 100))));
       const currentMa = Math.max(0, (voltage - 2.0) / ohms * 1000);
       const powerW = (currentMa * currentMa * ohms) / 1_000_000;
       const issues = [];

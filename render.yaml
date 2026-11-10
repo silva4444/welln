@@ -2,23 +2,17 @@ services:
   - type: web
     name: coda-educacional
     runtime: node
-    plan: starter
+    plan: free
     region: oregon
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeploy: true
-    disk:
-      name: coda-dados
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: HOST
         value: 0.0.0.0
-      - key: CODA_DATABASE
-        value: /var/data/coda.sqlite
       - key: CODA_TEACHER_EMAIL
         sync: false
       - key: CODA_TEACHER_PASSWORD

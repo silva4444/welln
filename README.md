@@ -1,6 +1,8 @@
-# Coda Educacional v10.5.0 — Aprendizagem e gestão institucional
+# CODA Educacional v14.5.0 — Aprendizagem, sincronização e laboratório VR/RA
 
-Esta edição mantém as 14 matérias e as 98 aulas da versão de conteúdo, com a organização visual da versão 10. O Firebase foi removido: contas, conteúdo editado e registros acadêmicos ficam em um banco SQLite local.
+Esta edição mantém as 14 matérias e as 98 aulas da versão de conteúdo. Contas, conteúdo, registros acadêmicos e progresso ficam no banco SQLite do servidor. Quando o servidor é publicado com disco persistente, o aluno acessa a mesma conta em outro computador e recupera o avanço automaticamente.
+
+O progresso também possui fila offline: se a conexão cair, a alteração permanece no navegador e é reenviada quando a internet voltar. Na entrada seguinte, a data da cópia local é comparada com a do servidor para evitar que um avanço offline mais novo seja apagado.
 
 O tema claro agora usa superfícies suaves com contraste AA, enquanto o tema escuro possui tokens próprios. Botões, campos, cartões, estados de interface e tamanhos mínimos de texto foram padronizados.
 
@@ -46,11 +48,11 @@ Professor e administrador não usam o cadastro público do aluno. O próprio pri
 
 1. Escolha **Professor** ou **Administrador**.
 2. Digite seu próprio e-mail.
-3. Escolha uma senha com pelo menos 16 caracteres.
+3. Escolha uma senha com pelo menos 6 caracteres.
 4. Informe o código correspondente.
 5. Se o e-mail ainda não estiver cadastrado, a Coda cria a conta. Nos próximos acessos, use o mesmo e-mail, a mesma senha e o código.
 
-Não há senhas ou códigos padrão na versão publicada. Configure as contas e os códigos pelas variáveis de ambiente antes da primeira inicialização: `CODA_TEACHER_NAME`, `CODA_TEACHER_EMAIL`, `CODA_TEACHER_PASSWORD`, `CODA_TEACHER_CODE`, `CODA_ADMIN_NAME`, `CODA_ADMIN_EMAIL`, `CODA_ADMIN_PASSWORD` e `CODA_ADMIN_CODE`. Não coloque seus valores em arquivos versionados.
+Os códigos administrativos não são publicados no repositório. Defina e-mails, senhas e códigos fortes pelas variáveis de ambiente `CODA_TEACHER_EMAIL`, `CODA_TEACHER_PASSWORD`, `CODA_TEACHER_CODE`, `CODA_ADMIN_EMAIL`, `CODA_ADMIN_PASSWORD` e `CODA_ADMIN_CODE` antes de iniciar a versão pública.
 
 ## Tutor Coda 10.5 — sem API de IA
 
@@ -98,7 +100,7 @@ npm.cmd start
 ## Abrir no Windows com dois cliques
 
 1. Extraia o ZIP.
-2. Abra a pasta `Coda-v10.5.0-Institucional`.
+2. Abra a pasta extraída do CODA v14.5.
 3. Dê dois cliques em `ABRIR-CODA-1-CLIQUE.bat`.
 4. O navegador abrirá em `http://127.0.0.1:8080`.
 
@@ -145,7 +147,7 @@ O ZIP distribuído deve ser gerado **somente** pelo script oficial, nunca com co
 npm run package
 ```
 
-O script cria `Coda-v10.5.0-Institucional-distribuicao.zip` na pasta acima do projeto e exclui explicitamente `data/`, `.git/`, `node_modules/`, arquivos de log e artefatos SQLite. Assim, banco local, backups e dados de teste não entram na entrega. Para revisar ou automatizar outro destino, use a variável `CODA_PACKAGE_OUT`.
+O script cria um ZIP de distribuição na pasta acima do projeto e exclui explicitamente `data/`, `.git/`, `node_modules/`, arquivos de log e artefatos SQLite. Assim, banco local, backups e dados de teste não entram na entrega. Para escolher outro destino, use a variável `CODA_PACKAGE_OUT`.
 
 ## Migrações do banco
 
@@ -186,16 +188,21 @@ Para montar um circuito, arraste de um terminal até outro terminal ou selecione
 
 Não foi adicionada dependência externa para o simulador. Ele usa apenas HTML, CSS e JavaScript nativos já presentes no projeto. Para executar localmente, use Node.js 22.5 ou superior e rode `npm install` (não há pacotes adicionais necessários), seguido de `npm start`; abra `http://127.0.0.1:8080` e entre no portal do aluno para acessar a bancada.
 
-## Realidade aumentada ESP32 (WebXR)
+## Óculos VR e realidade aumentada ESP32 (WebXR)
 
-A área ESP32 agora possui o modo **Realidade aumentada**, com duas experiências:
+A área ESP32 agora possui duas experiências para óculos:
+
+- **Ambiente virtual (immersive-vr):** laboratório fechado, sem passthrough, com mesa, iluminação, placa ESP32, componentes e suporte a mãos/controles quando o navegador oferece hand tracking.
+- **Bancada real (immersive-ar):** usa passthrough e posiciona o ESP32 virtual sobre uma superfície real.
+
+Dentro de cada experiência, há dois modos de uso:
 
 - **Somente visualizar:** posiciona o ESP32 virtual sobre uma bancada/superfície real e permite reposicioná-lo.
 - **Laboratório interativo:** permite adicionar LED e resistor, selecionar uma peça com o controle/pinça e movê-la para outro ponto da superfície.
 
 ### Requisitos
 
-1. Óculos/navegador com suporte a `WebXR immersive-ar` e passthrough.
+1. Óculos/navegador com suporte a `WebXR immersive-vr` e/ou `WebXR immersive-ar`.
 2. O site deve ser servido em **HTTPS** (ou em um contexto seguro aceito pelo navegador).
 3. O navegador deve conceder acesso à sessão de realidade aumentada.
 
@@ -204,9 +211,9 @@ A área ESP32 agora possui o modo **Realidade aumentada**, com duas experiência
 1. Abra **ESP32** no CODA.
 2. Selecione **Realidade aumentada**.
 3. Clique em **Verificar meu dispositivo**.
-4. Escolha **Somente visualizar** ou **Laboratório interativo**.
-5. No modo laboratório, adicione LED/resistor antes ou durante a sessão quando o DOM Overlay estiver disponível.
-6. Clique em **Entrar em realidade aumentada**.
+4. Escolha **Ambiente virtual** ou **Bancada real**.
+5. Escolha **Somente visualizar** ou **Laboratório interativo**.
+6. Clique em **Entrar no ambiente**.
 7. Olhe para uma superfície e faça uma pinça/pressione o gatilho para posicionar o ESP32.
 8. No modo laboratório, aponte para um objeto e selecione; depois selecione outro ponto da superfície para movê-lo.
 
@@ -215,6 +222,24 @@ A área ESP32 agora possui o modo **Realidade aumentada**, com duas experiência
 A implementação é autocontida e fica em `js/esp32-ar.js`. Ela usa WebXR e WebGL diretamente, sem Three.js ou dependências externas. O modo normal do ESP32 continua funcionando em dispositivos sem RA.
 
 
-## RA em um clique
+No Meta Quest 3, abra a URL HTTPS pelo navegador do próprio óculos, escolha **Óculos VR / RA**, selecione o tipo de experiência e entre. O navegador ainda pode solicitar autorização para WebXR ou passthrough.
 
-Na área ESP32, tocar em **🥽 Realidade aumentada** chama `navigator.xr.requestSession("immersive-ar")` imediatamente. Não é necessário usar um botão separado de verificação/entrada. O navegador do óculos ainda pode solicitar permissão de passthrough/RA, pois essa autorização é controlada pelo dispositivo.
+
+### Correção RA no celular (26/10/2026)
+
+A resposta HTTP agora libera `Permissions-Policy: camera=(self)` no próprio domínio e
+mantém microfone e localização bloqueados. No laboratório, a aba **RA no celular**
+abre a câmera traseira pelo `getUserMedia` com HTTPS e sobrepõe a placa ESP32 3D
+ao vídeo, sem depender de WebXR. Use Chrome no Android ou Safari no iPhone,
+permita a câmera para o endereço do site e toque na mesa para posicionar a placa.
+A opção **RA com óculos** continua separada via WebXR.
+
+
+## Bancada ESP32 em RA no celular
+
+Veja [RA-MOBILE-COMO-USAR.md](RA-MOBILE-COMO-USAR.md) para componentes, fios, editor, simulação e limitações de uso.
+
+
+## CODA RA Studio — melhorias v14.4
+
+A aba RA no celular inclui bancada mais enxuta, botão de fixar/desbloquear o ESP32 na **imagem da câmera** (posição de tela, não âncora física), movimentação independente de componentes 3D via toque, zoom por gesto de pinça, modos Bancada/Conexões/Código, ações rápidas de LED e execução, e editor Arduino com Verificar, Executar, Parar, Abrir e Salvar `.ino`. A experiência usa a câmera traseira sob HTTPS; WebXR com rastreamento real da mesa é uma capacidade diferente, dependente do dispositivo e não é simulada pela trava visual.

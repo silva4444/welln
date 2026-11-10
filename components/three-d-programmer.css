@@ -549,6 +549,51 @@
 #espProgramPanel #prototypeOutput b { color: #73dba3; font-size: 11px; }
 #espProgramPanel #prototypeOutput span { display: block; color: #bdcad5; }
 
+/* Renderização WebGL: a placa e as peças vêm do canvas; os elementos HTML
+   permanecem somente como camada acessível para terminais, seleção e arraste. */
+#espProgramPanel #circuit3DCanvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+#espProgramPanel #circuit3DCanvas:active { cursor: grabbing; }
+#espProgramPanel .prototype-stage.circuit-webgl-active .prototype-board {
+  opacity: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+#espProgramPanel .prototype-stage.circuit-webgl-active .prototype-esp { pointer-events: none; }
+#espProgramPanel .prototype-stage.circuit-webgl-active .prototype-pin-bank-left,
+#espProgramPanel .prototype-stage.circuit-webgl-active .prototype-pin-bank-right { pointer-events: auto; }
+#espProgramPanel .prototype-stage.circuit-webgl-active .prototype-wire-layer path {
+  stroke: transparent;
+  filter: none;
+}
+#espProgramPanel .prototype-stage.circuit-webgl-active .prototype-wire-layer circle { opacity: 0; }
+#espProgramPanel .prototype-stage.circuit-webgl-active .prototype-component {
+  background: rgba(7, 14, 25, .2);
+  border-color: rgba(151, 189, 210, .24);
+  box-shadow: none;
+}
+#espProgramPanel .prototype-stage.circuit-webgl-active .prototype-component::before { display: none; }
+#espProgramPanel .prototype-stage.circuit-webgl-active .prototype-component i { opacity: .12; }
+#espProgramPanel .prototype-stage.circuit-webgl-active .prototype-component.selected {
+  border-color: var(--component-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--component-color) 55%, transparent);
+}
+
+@media (max-width: 520px) {
+  #espProgramPanel #circuit3DCanvas { min-height: 550px; }
+}
+
 @media (max-width: 850px) {
   #espProgramPanel .prototype-stage { min-height: 590px; }
   #espProgramPanel .prototype-esp {
@@ -563,4 +608,91 @@
     transform: translate(-50%, -50%) rotateX(12deg) rotateZ(-3deg) scale(.68);
   }
   #espProgramPanel #prototypeOutput { right: 8px; bottom: 8px; left: 8px; font-size: 9px; }
+}
+
+/* Fluxo simplificado: montar, programar e executar na mesma tela. */
+#espProgramPanel .programmer-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 18px 0 8px;
+}
+#espProgramPanel .programmer-flow span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid #304554;
+  border-radius: 10px;
+  background: #0b1620;
+  color: #cbd8e2;
+  font-size: 12px;
+  font-weight: 800;
+}
+#espProgramPanel .programmer-flow b {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #a5d98f;
+  color: #142318;
+}
+#espProgramPanel .three-d-builder {
+  grid-template-columns: 220px minmax(0, 1fr) 250px;
+}
+#espProgramPanel .programmer-library,
+#espProgramPanel .component-inspector {
+  min-width: 0;
+}
+#espProgramPanel .component-palette {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+#espProgramPanel .component-palette .palette-group {
+  display: grid;
+  gap: 7px;
+}
+#espProgramPanel .component-palette button {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 2px 7px;
+  width: 100%;
+  text-align: left;
+}
+#espProgramPanel .component-palette button span { align-self: end; }
+#espProgramPanel .component-palette button small {
+  grid-column: 2;
+  color: #8297a8;
+  font-size: 10px;
+}
+#espProgramPanel .advanced-components {
+  border-top: 1px solid #304554;
+  padding-top: 9px;
+}
+#espProgramPanel .advanced-components summary {
+  cursor: pointer;
+  color: #a9bdcb;
+  font-size: 11px;
+  font-weight: 800;
+}
+#espProgramPanel .advanced-components .palette-group { margin-top: 9px; }
+#espProgramPanel .teacher-3d-templates { display: none; }
+#espProgramPanel .esp-firmware-panel {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid #304554;
+}
+
+@media (max-width: 1180px) {
+  #espProgramPanel .three-d-builder { grid-template-columns: 210px minmax(0, 1fr); }
+  #espProgramPanel .component-inspector { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  #espProgramPanel .programmer-flow { grid-template-columns: 1fr; }
+  #espProgramPanel .three-d-builder { grid-template-columns: 1fr; }
+  #espProgramPanel .component-inspector { grid-column: auto; }
+  #espProgramPanel .component-palette > .palette-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

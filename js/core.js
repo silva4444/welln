@@ -155,16 +155,16 @@ const quizData = {
 };
 
 const initialPosts = [
-  {id:1,author:"Bia Martins",initials:"BM",role:"Aluna",time:"há 12 min",topic:"JavaScript",title:"Por que meu map retorna undefined?",body:"Estou criando um novo array. Como identifico o erro dentro da arrow function?",likes:8,respostas:[{id:101,author:"Carlos Nunes",initials:"CN",role:"Professor",time:"há 8 min",body:"Verifique se a função do map retorna um valor em todos os casos e teste com um array pequeno."}]},
-  {id:2,author:"Carlos Nunes",initials:"CN",role:"Professor",time:"há 35 min",topic:"HTML/CSS",title:"Dica: teste a navegação usando só o teclado",body:"Semântica e foco visível ajudam mais pessoas a usar seu projeto.",likes:21,respostas:[]},
-  {id:3,author:"Lia Ramos",initials:"LR",role:"Profissional IoT",time:"há 1 h",topic:"ESP32",title:"Como escolher um GPIO para o sensor?",body:"Consulte a função de cada pino e confirme o nível de tensão aceito pelo módulo.",likes:13,respostas:[]}
+  {id:1,author:"Aluna Exemplo",initials:"AE",role:"Aluna",time:"há 12 min",topic:"JavaScript",title:"Por que meu map retorna undefined?",body:"Estou criando um novo array. Como identifico o erro dentro da arrow function?",likes:8,respostas:[{id:101,author:"Professor Exemplo",initials:"PE",role:"Professor",time:"há 8 min",body:"Verifique se a função do map retorna um valor em todos os casos e teste com um array pequeno."}]},
+  {id:2,author:"Professor Exemplo",initials:"PE",role:"Professor",time:"há 35 min",topic:"HTML/CSS",title:"Dica: teste a navegação usando só o teclado",body:"Semântica e foco visível ajudam mais pessoas a usar seu projeto.",likes:21,respostas:[]},
+  {id:3,author:"Profissional Exemplo",initials:"PX",role:"Profissional IoT",time:"há 1 h",topic:"ESP32",title:"Como escolher um GPIO para o sensor?",body:"Consulte a função de cada pino e confirme o nível de tensão aceito pelo módulo.",likes:13,respostas:[]}
 ];
 
 let appDatabase=null;
 let originalDatabase=null;
 function normalizeDatabase(database){
   const safe=database&&typeof database==="object"?database:{};
-  safe.meta={nome:"codaDB",versao:7,...(safe.meta||{})};delete safe.meta.teacherAccessCode;if(safe.meta.nome==="NexoDB")safe.meta.nome="codaDB";
+  safe.meta={nome:"codaDB",versao:7,teacherAccessCode:null,...(safe.meta||{})};if(safe.meta.nome==="NexoDB")safe.meta.nome="codaDB";if(safe.meta.teacherAccessCode)safe.meta.teacherAccessCode=null;
   safe.tabelas=safe.tabelas||{alunos:[],materias:[],atividades:[]};
   safe.conteudos=Array.isArray(safe.conteudos)?safe.conteudos:[];
   safe.desafiosExtras=Array.isArray(safe.desafiosExtras)?safe.desafiosExtras:[];
@@ -178,7 +178,7 @@ function normalizeDatabase(database){
 async function loadDatabase(){
   const local=loadJSON("nexo-database",null);
   try{const response=await fetch("banco.json",{cache:"no-store"});if(response.ok)originalDatabase=normalizeDatabase(await response.json())}catch(error){console.warn("Falha ao carregar banco JSON local:",error?.message||error)}
-  originalDatabase=originalDatabase||normalizeDatabase({meta:{},tabelas:{alunos:[{id:1,nome:"Ana Souza",trilha:"HTML",ativo:true},{id:2,nome:"Bruno Lima",trilha:"Python",ativo:true}],materias:courseBlueprints.map(course=>({id:course.id,nome:course.name,categoria:course.category,aulas:7})),atividades:[]},conteudos:[],desafiosExtras:[],comunidade:initialPosts});
+  originalDatabase=originalDatabase||normalizeDatabase({meta:{},tabelas:{alunos:[{id:1,nome:"Aluno Exemplo 01",trilha:"HTML",ativo:true},{id:2,nome:"Aluno Exemplo 02",trilha:"Python",ativo:true}],materias:courseBlueprints.map(course=>({id:course.id,nome:course.name,categoria:course.category,aulas:7})),atividades:[]},conteudos:[],desafiosExtras:[],comunidade:initialPosts});
   appDatabase=normalizeDatabase(local||JSON.parse(JSON.stringify(originalDatabase)));
   state.posts=appDatabase.comunidade;
 }
@@ -280,7 +280,9 @@ function lessonCode(course,index){
 }
 function lessonText(course,index){
   const topic=course.topics[index];
-  return `Nesta aula você vai entender <strong>${escapeHtml(topic.toLowerCase())}</strong> construindo uma parte pequena de um projeto. Observe o exemplo, altere um valor e compare o resultado. O objetivo não é decorar cada comando, mas reconhecer o padrão e saber quando usá-lo.`;
+  const theory=academicLessonTheory[course.id]?.[index]||`O tema ${topic} resolve uma parte importante de um projeto ${course.name}.`;
+  const system=lessonSystemExamples[course.id]?.[index]||`projeto de ${course.name}`;
+  return `${escapeHtml(theory)} Nesta aula, você vai aplicar <strong>${escapeHtml(topic.toLowerCase())}</strong> em um ${escapeHtml(system)}. Observe a entrada, altere uma decisão do exemplo e compare a saída antes de avançar.`;
 }
 const languageExplanations={
   html:{title:"A estrutura das páginas da web",text:"HTML é a linguagem de marcação que organiza o conteúdo de uma página. Títulos, parágrafos, imagens, links, formulários e seções são representados por elementos que dão significado e estrutura ao documento.",use:"Você usa HTML como a base de sites e aplicações web. Um bom documento também melhora a acessibilidade, ajuda mecanismos de busca e facilita o trabalho conjunto com CSS e JavaScript."},
@@ -405,9 +407,15 @@ function microVideoSlides(course,index){const topic=lessonTitle(course,index),th
   {eyebrow:"PRATIQUE",title:"Produza uma evidência",text:conciseVideoText(deep.checkpoint)}
 ]}
 function lessonVideoData(course,index,mode="short"){
-  const override=videoOverride(course.id,index),id=extractYouTubeId(override?.url)||defaultVideoId(course),url=override?.url||`https://www.youtube.com/watch?v=${id}`,slides=microVideoSlides(course,index),transcript=slides.map((slide,slideIndex)=>`${slideIndex+1}. ${slide.title}. ${slide.text}`).join(" ");
-  if(mode==="full"||override)return {kind:"youtube",id,url,title:`${course.name} — ${lessonTitle(course,index)}`,duration:20,minutes:20,start:0,end:null,label:override?"VÍDEO DO PROFESSOR":"CURSO COMPLETO",note:override?.note||`Observe como “${lessonTitle(course,index)}” aparece no curso completo e compare com o exemplo da aula.`,transcript};
-  return {kind:"micro",id:`${course.id}-${index+1}`,courseId:course.id,lessonIndex:index,url,title:`${course.name} — ${lessonTitle(course,index)}`,duration:1,minutes:1,durationSeconds:60,label:"MICROAULA EXCLUSIVA",note:`Assista à explicação curta de “${lessonTitle(course,index)}”, acompanhe a legenda e depois faça a atividade.`,slides,transcript};
+  const override=videoOverride(course.id,index);
+  const source=window.CodaLessonVideos?.get?.(course.id,index,mode)||{id:defaultVideoId(course),start:0,end:null,label:"VIDEOAULA REAL",duration:20,title:`${course.name} — aula ${index+1}`};
+  const id=extractYouTubeId(override?.url)||source.id;
+  const start=Number.isFinite(Number(override?.start))?Number(override.start):(override?0:source.start);
+  const end=Number.isFinite(Number(override?.end))?Number(override.end):(override?null:source.end);
+  const url=override?.url||`https://www.youtube.com/watch?v=${id}${start?`&t=${start}s`:""}`;
+  const slides=microVideoSlides(course,index),transcript=slides.map((slide,slideIndex)=>`${slideIndex+1}. ${slide.title}. ${slide.text}`).join(" ");
+  const short=mode!=="full"&&!override;
+  return {kind:"youtube",id,courseId:course.id,lessonIndex:index,url,title:`${course.name} — ${lessonTitle(course,index)}`,duration:short?(source.duration||5):20,minutes:short?(source.duration||5):20,durationSeconds:60,start,end,label:override?"VÍDEO DO PROFESSOR":source.label,note:override?.note||`${source.title}. Trecho selecionado para a aula ${index+1}, relacionado a “${lessonTitle(course,index)}”. Assista ao vídeo real e depois retorne ao exercício.`,slides,transcript};
 }
 function youtubeEmbedUrl(video){const query=new URLSearchParams({rel:"0",modestbranding:"1"});if(video.start)query.set("start",String(video.start));if(video.end)query.set("end",String(video.end));return `https://www.youtube-nocookie.com/embed/${video.id}?${query}`}
 function microVideoMarkup(video){const first=video.slides[0];return `<div class="micro-video" data-micro-video data-course="${video.courseId}" data-lesson="${video.lessonIndex}" role="region" aria-label="Microaula: ${escapeHtml(video.title)}"><div class="micro-video-stage"><span class="micro-video-symbol">&lt;/&gt;</span><div class="micro-video-copy"><small data-micro-eyebrow>${escapeHtml(first.eyebrow)}</small><h4 data-micro-title>${escapeHtml(first.title)}</h4><p data-micro-caption aria-live="polite">${escapeHtml(first.text)}</p></div><span class="micro-video-count" data-micro-count>1/${video.slides.length}</span></div><div class="micro-video-controls"><button type="button" data-micro-toggle aria-label="Reproduzir microaula">▶ Reproduzir</button><div class="micro-video-track"><i data-micro-progress></i></div><time data-micro-time>00:00 / 01:00</time><button type="button" data-micro-speak>🔊 Ouvir</button></div><details class="video-transcript"><summary>Transcrição e legenda completa</summary><p>${escapeHtml(video.transcript)}</p></details></div>`}
@@ -486,7 +494,7 @@ function renderVideos(){
   const visible=visibleVideos();if(visible.length&&!visible.some(item=>item.index===state.currentVideo))state.currentVideo=visible[0].index;
   const base=videoCatalog[state.currentVideo]||videoCatalog[0],course=courseById(base.courseId),video=lessonVideoData(course,base.lessonIndex,state.videoLength),current={...base,...video,title:lessonTitle(course,base.lessonIndex)};
   const playerFrame=$(".player-frame");playerFrame.innerHTML='<iframe id="videoFrame" title="Videoaula selecionada" loading="lazy" allowfullscreen></iframe><div class="video-placeholder" id="videoPlaceholder"><button id="loadVideo">▶</button><span>Carregar videoaula</span></div>';
-  $("#videoPlaceholder span").textContent=state.videoLength==="short"?"Reproduzir microaula exclusiva com legenda":"Carregar curso completo alternativo";
+  $("#videoPlaceholder span").textContent=state.videoLength==="short"?"Reproduzir trecho real da videoaula":"Carregar videoaula completa";
   $("#videoResultCount").textContent=`${visible.length} ${visible.length===1?"aula":"aulas"}`;$("#videoCatalogCount").textContent=videoCatalog.length;
   const deep=lessonDeepDiveData(course,current.lessonIndex);$("#videoLearningStrip").innerHTML=`<div><small>ANTES</small><strong>Ative o conhecimento</strong><p>${escapeHtml(current.note)}</p></div><div><small>DURANTE</small><strong>Procure o conceito</strong><p>Identifique onde “${escapeHtml(current.title)}” aparece no exemplo.</p></div><div><small>DEPOIS</small><strong>Pratique imediatamente</strong><p>${escapeHtml(deep.checkpoint)}</p></div>`;
   $("#playerInfo").innerHTML=`<div class="player-copy"><small>${escapeHtml(course.name.toUpperCase())} • AULA ${String(current.lessonIndex+1).padStart(2,"0")}</small><strong>${escapeHtml(current.title)}</strong><p>${escapeHtml(current.description)}</p></div><div class="player-actions"><span>${escapeHtml(current.label)} • ${current.minutes} MIN</span><button id="openVideoLesson">Abrir aula e atividade →</button><a href="${escapeHtml(current.url)}" target="_blank" rel="noopener noreferrer">Ver fonte completa ↗</a></div>`;
@@ -803,7 +811,7 @@ function updateEspControls(){
 }
 
 async function connectEsp(){
-  if(!("serial" in navigator)){showToast("Use Chrome ou Edge com Live Server para conectar por USB");return}
+  if(!("serial" in navigator)){showToast("Use Chrome ou Edge no computador para conectar o ESP32 por USB");return false}
   try{
     if(espSerialPort){try{await espSerialReader?.cancel()}catch(error){console.warn("Falha ao cancelar leitura serial:",error?.message||error)}try{await espSerialPort.close()}catch(error){console.warn("Falha ao fechar porta serial:",error?.message||error)}}
     espSerialPort=await navigator.serial.requestPort();
@@ -812,7 +820,8 @@ async function connectEsp(){
     showConsole("ESP32 conectado. Aguardando comandos do MicroPython...\n");
     readEspSerial();
     showToast("ESP32 conectado por USB");
-  }catch(error){if(error.name!=="NotFoundError")showToast(`Falha na conexão: ${error.message}`)}
+    return true;
+  }catch(error){if(error.name!=="NotFoundError")showToast(`Falha na conexão: ${error.message}`);return false}
 }
 
 async function readEspSerial(){
@@ -826,8 +835,10 @@ async function readEspSerial(){
         while(true){
           const {value,done}=await espSerialReader.read();
           if(done)break;
-          $("#consoleOutput").textContent+=decoder.decode(value,{stream:true});
+          const text=decoder.decode(value,{stream:true});
+          $("#consoleOutput").textContent+=text;
           $("#consoleOutput").scrollTop=$("#consoleOutput").scrollHeight;
+          document.dispatchEvent(new CustomEvent("coda:esp-serial",{detail:{text}}));
         }
       }finally{espSerialReader.releaseLock();espSerialReader=null}
     }
@@ -840,9 +851,9 @@ async function writeEsp(bytes){
   try{await writer.write(bytes)}finally{writer.releaseLock()}
 }
 
-async function sendEspCode(){
+async function sendEspCode(sourceCode){
   if(!espSerialPort?.writable)throw new Error("ESP32 não conectado.");
-  const code=$("#codeEditor").value.replace(/\r\n/g,"\n");
+  const code=String(typeof sourceCode==="string"?sourceCode:$("#codeEditor").value).replace(/\r\n/g,"\n");
   showConsole("Enviando código para o ESP32...\n");
   await writeEsp(new Uint8Array([3,3]));
   await new Promise(resolve=>setTimeout(resolve,120));
@@ -852,6 +863,11 @@ async function sendEspCode(){
   await writeEsp(new Uint8Array([4]));
   showToast("Código executando no ESP32");
   return {success:true};
+}
+
+async function runPhysicalEspCode(code){
+  if(!espSerialPort&&!(await connectEsp()))return {success:false};
+  return sendEspCode(code);
 }
 
 async function stopEsp(){
@@ -898,7 +914,7 @@ const base3DTemplates=[
 function all3DTemplates(){const edits=appDatabase?.modelos3D||[],map=new Map(base3DTemplates.map(item=>[item.id,{...item}]));edits.forEach(item=>map.set(item.id,{...(map.get(item.id)||{}),...item}));return [...map.values()]}
 const componentNames={led:"LED",rgb:"LED RGB",button:"Botão",resistor:"Resistor",capacitor:"Capacitor",battery:"Bateria",potentiometer:"Potenciômetro",sensor:"Sensor",temperature:"Sensor de temperatura",servo:"Servo",motor:"Motor",display:"Display",relay:"Relé",buzzer:"Buzzer"};
 
-const wiringPins=["3V3","VIN","GND","GPIO2","GPIO4","GPIO5","GPIO18","GPIO19","GPIO21","GPIO25","GPIO26","GPIO27"];
+const wiringPins=[...window.CodaESPModel.left,...window.CodaESPModel.right];
 const circuitLayouts={
   blink:[{id:"R1",type:"resistor",label:"Resistor 220 Ω",terminals:["A","B"]},{id:"LED1",type:"led",label:"LED",terminals:["A","K"]}],
   traffic:[{id:"R1",type:"resistor",label:"Resistor vermelho",terminals:["A","B"]},{id:"LEDR",type:"led red",label:"LED vermelho",terminals:["A","K"]},{id:"R2",type:"resistor",label:"Resistor amarelo",terminals:["A","B"]},{id:"LEDY",type:"led yellow",label:"LED amarelo",terminals:["A","K"]},{id:"R3",type:"resistor",label:"Resistor verde",terminals:["A","B"]},{id:"LEDG",type:"led green",label:"LED verde",terminals:["A","K"]}],
@@ -912,7 +928,7 @@ const circuitPresets={
   wifi:[["PIN:GPIO2","R1:A"],["R1:B","LED1:A"],["LED1:K","PIN:GND"],["PIN:GPIO4","BTN1:1"],["BTN1:2","PIN:GND"]]
 };
 const wireColors=["#ff5f6d","#ffd84d","#56b8ff","#b9ff3b","#bd84ff","#ff9d52"];
-function createPins(){const left=["3V3","GND","GPIO15","GPIO2","GPIO4","GPIO16","GPIO17","GPIO5","GPIO18","GPIO19"],right=["VIN","GND","GPIO13","GPIO12","GPIO14","GPIO27","GPIO26","GPIO25","GPIO33","GPIO21"];$("#leftPins").innerHTML=left.map(pin=>`<i data-pin="${pin}"></i>`).join("");$("#rightPins").innerHTML=right.map(pin=>`<i data-pin="${pin}"></i>`).join("")}
+function createPins(){const left=["3V3","GND","GPIO15","GPIO2","GPIO4","GPIO16","GPIO17","GPIO5","GPIO18","GPIO19"],right=["VIN","GND","GPIO13","GPIO12","GPIO14","GPIO27","GPIO26","GPIO25","GPIO33","GPIO21"];const leftRoot=$("#leftPins"),rightRoot=$("#rightPins");if(leftRoot)leftRoot.innerHTML=left.map(pin=>`<i data-pin="${pin}"></i>`).join("");if(rightRoot)rightRoot.innerHTML=right.map(pin=>`<i data-pin="${pin}"></i>`).join("")}
 function currentProject(){return espProjects[state.espProject]}
 function wiringStorageId(){return currentProject().id}
 function currentWires(){const id=wiringStorageId();if(!Array.isArray(state.wiringByProject[id]))state.wiringByProject[id]=[];state.wiringByProject[id]=state.wiringByProject[id].filter(edge=>Array.isArray(edge)&&edge.length===2&&edge.every(endpoint=>typeof endpoint==="string"));return state.wiringByProject[id]}
@@ -932,10 +948,40 @@ function renderWiringWorkbench(){
   $$('[data-terminal]',$("#wiringBoard")).forEach(button=>button.addEventListener("click",()=>{if(button.dataset.skipClick){delete button.dataset.skipClick;return}selectWireTerminal(button.dataset.terminal)}));
   bindTerminalWireDrag();
   bindWiringDrag();
-  state.wiringSelected=null;updateWiringSelection();renderWirePaths();renderCircuitResult();
+  state.wiringSelected=null;updateWiringSelection();renderWirePaths();renderCircuitResult();updateWiring3D();
 }
+function updateWiring3D(){
+  const canvas=$("#wiring3DCanvas"),board=$("#wiringBoard"),renderer=window.CodaCircuit3D?.mount?.(canvas);if(!canvas||!board||!renderer)return;
+  board.classList.toggle("wiring-webgl-active",!canvas.dataset.rendererError);
+  const bounds=board.getBoundingClientRect();if(!bounds.width||!bounds.height)return;const parts=$$('.circuit-component',board),components=parts.map((node,index)=>{
+    const rect=node.getBoundingClientRect(),raw=node.dataset.part,type=raw.startsWith("LED")?"led":raw.startsWith("R")?"resistor":raw.startsWith("HC")?"sensor":raw.startsWith("BTN")?"button":(node.classList.contains("battery")?"battery":node.classList.contains("capacitor")?"capacitor":"button"),style=getComputedStyle(node),hex=style.getPropertyValue("--component-color").trim();
+    return {id:raw,type,label:node.querySelector("strong")?.textContent||raw,x:Math.max(4,Math.min(96,(rect.left+rect.width/2-bounds.left)/bounds.width*100)),y:Math.max(8,Math.min(90,(rect.top+rect.height/2-bounds.top)/bounds.height*100)),color:hex|| (node.classList.contains("led")?"#ff5f6d":"#d6b56d"),active:node.classList.contains("powered"),scale:1,rotation:0,index};
+  });
+  let positions={};try{positions=JSON.parse(localStorage.getItem(`coda-3d-positions-${wiringStorageId()}`)||"{}")}catch{}
+  components.forEach(item=>{const saved=positions[item.id];if(saved&&Number.isFinite(saved.x)&&Number.isFinite(saved.y)){item.x=saved.x;item.y=saved.y}});
+  components.forEach(item=>{if(item.type==="led")item.pin=`GPIO${currentProject().id==="traffic"?({LEDR:18,LEDY:19,LEDG:21}[item.id]||2):2}`;if(item.type==="resistor"){item.ohms=220;item.value=100}});
+  const mapTerminal=value=>{if(value.startsWith("PIN:"))return `ESP32:${value.slice(4)}`;const [id,pin]=value.split(":");const part=components.find(item=>item.id===id);return part?.type==="led"&&pin==="K"?`${id}:B`:value};
+  const wires=currentWires().map(edge=>({a:mapTerminal(edge[0]),b:mapTerminal(edge[1]),color:wireColors[currentWires().indexOf(edge)%wireColors.length]}));
+  renderer.update({components,wires,simulating:$$('.circuit-component.powered',board).length>0});
+}
+document.addEventListener("circuit-wire-request",event=>{
+  const {a,b,canvasId}=event.detail;
+  if(canvasId==="circuit3DCanvas"){state.threeDWireSelection=null;connectPrototypeTerminals(a,b);}
+  else if(canvasId==="wiring3DCanvas"){state.wiringSelected=null;selectWireTerminal(a);selectWireTerminal(b);}
+});
+document.addEventListener("circuit-wire-selected",event=>{if(event.detail.canvasId!=="circuit3DCanvas")return;state.threeDSelectedWire=event.detail.index;render3DProgrammer();showToast("Fio selecionado — altere a cor ou remova no inspetor");});
+document.addEventListener("circuit-piece-moved",event=>{
+  const {id,x,y,canvasId}=event.detail;
+  if(canvasId==="circuit3DCanvas"){
+    const item=state.threeDComponents.find(part=>String(part.id)===String(id));
+    if(item){item.x=x;item.y=y;save3DPrototype();}
+  }else if(canvasId==="wiring3DCanvas"){
+    const key=`coda-3d-positions-${wiringStorageId()}`;let positions={};try{positions=JSON.parse(localStorage.getItem(key)||"{}")}catch{}
+    positions[id]={x,y};localStorage.setItem(key,JSON.stringify(positions));
+  }
+});
 function bindTerminalWireDrag(){const board=$("#wiringBoard"),svg=$("#wireLayer");if(!board||!svg)return;let active=null;$$('[data-terminal]',board).forEach(terminal=>{terminal.onpointerdown=event=>{if(event.button!==0)return;active={source:terminal,pointerId:event.pointerId};terminal.setPointerCapture?.(event.pointerId);terminal.classList.add("dragging-terminal");const sourceRect=terminal.getBoundingClientRect(),boardRect=board.getBoundingClientRect();svg.insertAdjacentHTML("beforeend",`<path class="wire-preview" data-preview-wire d="M ${sourceRect.left+sourceRect.width/2-boardRect.left} ${sourceRect.top+sourceRect.height/2-boardRect.top} L ${sourceRect.left+sourceRect.width/2-boardRect.left} ${sourceRect.top+sourceRect.height/2-boardRect.top}" stroke="#56b8ff"/>`)};terminal.onpointermove=event=>{if(!active)return;const boardRect=board.getBoundingClientRect(),sourceRect=active.source.getBoundingClientRect(),preview=$("[data-preview-wire]",svg);if(preview)preview.setAttribute("d",`M ${sourceRect.left+sourceRect.width/2-boardRect.left} ${sourceRect.top+sourceRect.height/2-boardRect.top} L ${event.clientX-boardRect.left} ${event.clientY-boardRect.top}`)};terminal.onpointerup=event=>{if(!active)return;const source=active.source,target=document.elementFromPoint(event.clientX,event.clientY)?.closest?.("[data-terminal]");$("[data-preview-wire]",svg)?.remove();source.classList.remove("dragging-terminal");active=null;if(target&&target!==source){source.dataset.skipClick="1";target.dataset.skipClick="1";selectWireTerminal(source.dataset.terminal);selectWireTerminal(target.dataset.terminal)}}})}
-function bindWiringDrag(){const board=$("#wiringBoard"),bench=$("#circuitComponents");if(!board||!bench)return;$$('[data-wiring-view]').forEach(button=>button.onclick=()=>{const view=button.dataset.wiringView;$$('[data-wiring-view]').forEach(item=>item.classList.toggle("active",item===button));board.classList.toggle("wiring-board-3d",view==="3d");board.classList.toggle("wiring-board-2d",view!=="3d");requestAnimationFrame(renderWirePaths)});$$('[data-add-component]',$('#wiringPalette')).forEach(button=>{button.ondragstart=event=>event.dataTransfer.setData("component-type",button.dataset.addComponent);button.onclick=()=>addWiringComponent(button.dataset.addComponent)});board.ondragover=event=>{if(event.dataTransfer?.types?.length){event.preventDefault();board.classList.add("drop-target")}};board.ondragleave=()=>board.classList.remove("drop-target");board.ondrop=event=>{event.preventDefault();board.classList.remove("drop-target");const type=event.dataTransfer.getData("component-type");if(type){const rect=bench.getBoundingClientRect();addWiringComponent(type,Math.max(4,Math.min(82,(event.clientX-rect.left)/rect.width*100)),Math.max(8,Math.min(84,(event.clientY-rect.top)/rect.height*100)));return}};board.onkeydown=event=>{if(event.key!=="Delete"&&event.key!=="Backspace")return;const selected=$(".circuit-component.selected",bench);if(!selected)return;const id=selected.dataset.part;if(!confirm(`Remover ${selected.querySelector("strong")?.textContent||"este componente"}?`))return;pushWiringHistory();saveCustomWiring(customWiring().filter(item=>item.id!==id));state.wiringByProject[wiringStorageId()]=currentWires().filter(edge=>!edge.some(endpoint=>endpoint.startsWith(`${id}:`)));localStorage.setItem("nexo-wiring",JSON.stringify(state.wiringByProject));saveStudentWorkspace();renderWiringWorkbench();showToast("Componente removido")};$$('[data-custom="true"]',bench).forEach(card=>{const item=customWiring().find(row=>row.id===card.dataset.part);if(!item)return;card.onpointerdown=event=>{if(event.target.closest("[data-terminal]"))return;event.preventDefault();const rect=bench.getBoundingClientRect(),startX=event.clientX,startY=event.clientY,originX=item.x,originY=item.y;card.setPointerCapture(event.pointerId);card.classList.add("dragging");const move=moveEvent=>{item.x=Math.max(3,Math.min(88,originX+(moveEvent.clientX-startX)/rect.width*100));item.y=Math.max(7,Math.min(87,originY+(moveEvent.clientY-startY)/rect.height*100));card.style.left=`${item.x}%`;card.style.top=`${item.y}%`;renderWirePaths()};const end=()=>{card.classList.remove("dragging");card.releasePointerCapture?.(event.pointerId);card.removeEventListener("pointermove",move);card.removeEventListener("pointerup",end);saveCustomWiring(customWiring())};card.addEventListener("pointermove",move);card.addEventListener("pointerup",end)};card.onclick=()=>{$$('[data-custom="true"]',bench).forEach(node=>node.classList.remove("selected"));card.classList.add("selected");state.wiringSelected=null;updateWiringSelection()}})}
+function bindWiringDrag(){const board=$("#wiringBoard"),bench=$("#circuitComponents");if(!board||!bench)return;board.classList.add("wiring-board-3d");$$('[data-add-component]',$('#wiringPalette')).forEach(button=>{button.ondragstart=event=>event.dataTransfer.setData("component-type",button.dataset.addComponent);button.onclick=()=>addWiringComponent(button.dataset.addComponent)});board.ondragover=event=>{if(event.dataTransfer?.types?.length){event.preventDefault();board.classList.add("drop-target")}};board.ondragleave=()=>board.classList.remove("drop-target");board.ondrop=event=>{event.preventDefault();board.classList.remove("drop-target");const type=event.dataTransfer.getData("component-type");if(type){const rect=bench.getBoundingClientRect();addWiringComponent(type,Math.max(4,Math.min(82,(event.clientX-rect.left)/rect.width*100)),Math.max(8,Math.min(84,(event.clientY-rect.top)/rect.height*100)));return}};board.onkeydown=event=>{if(event.key!=="Delete"&&event.key!=="Backspace")return;const selected=$(".circuit-component.selected",bench);if(!selected)return;const id=selected.dataset.part;if(!confirm(`Remover ${selected.querySelector("strong")?.textContent||"este componente"}?`))return;pushWiringHistory();saveCustomWiring(customWiring().filter(item=>item.id!==id));state.wiringByProject[wiringStorageId()]=currentWires().filter(edge=>!edge.some(endpoint=>endpoint.startsWith(`${id}:`)));localStorage.setItem("nexo-wiring",JSON.stringify(state.wiringByProject));saveStudentWorkspace();renderWiringWorkbench();showToast("Componente removido")};$$('[data-custom="true"]',bench).forEach(card=>{const item=customWiring().find(row=>row.id===card.dataset.part);if(!item)return;card.onpointerdown=event=>{if(event.target.closest("[data-terminal]"))return;event.preventDefault();const rect=bench.getBoundingClientRect(),startX=event.clientX,startY=event.clientY,originX=item.x,originY=item.y;card.setPointerCapture(event.pointerId);card.classList.add("dragging");const move=moveEvent=>{item.x=Math.max(3,Math.min(88,originX+(moveEvent.clientX-startX)/rect.width*100));item.y=Math.max(7,Math.min(87,originY+(moveEvent.clientY-startY)/rect.height*100));card.style.left=`${item.x}%`;card.style.top=`${item.y}%`;renderWirePaths()};const end=()=>{card.classList.remove("dragging");card.releasePointerCapture?.(event.pointerId);card.removeEventListener("pointermove",move);card.removeEventListener("pointerup",end);saveCustomWiring(customWiring())};card.addEventListener("pointermove",move);card.addEventListener("pointerup",end)};card.onclick=()=>{$$('[data-custom="true"]',bench).forEach(node=>node.classList.remove("selected"));card.classList.add("selected");state.wiringSelected=null;updateWiringSelection()}})}
 function addWiringComponent(type,x=12,y=12){const definition=customWiringTypes[type];if(!definition)return;pushWiringHistory();const existing=customWiring(),number=existing.filter(item=>item.type===type).length+1;existing.push({id:`${type.toUpperCase()}${number}`,type,label:definition.label,terminals:definition.terminals,custom:true,x,y});saveCustomWiring(existing);renderWiringWorkbench();showToast(`${definition.label} adicionado à bancada`)}
 function selectWireTerminal(terminal){
   if(!state.wiringSelected){state.wiringSelected=terminal;updateWiringSelection();renderWirePaths();return}
@@ -951,9 +997,10 @@ function terminalElement(id){return $$('[data-terminal]',$("#wiringBoard")).find
 function renderWirePaths(){
   const svg=$("#wireLayer"),board=$("#wiringBoard");if(!svg||!board)return;const area=board.getBoundingClientRect();svg.setAttribute("viewBox",`0 0 ${area.width} ${area.height}`);
   svg.innerHTML=currentWires().map((edge,index)=>{const a=terminalElement(edge[0]),b=terminalElement(edge[1]);if(!a||!b)return "";const ar=a.getBoundingClientRect(),br=b.getBoundingClientRect(),x1=ar.left+ar.width/2-area.left,y1=ar.top+ar.height/2-area.top,x2=br.left+br.width/2-area.left,y2=br.top+br.height/2-area.top,mx=(x1+x2)/2;return `<path d="M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}" stroke="${wireColors[index%wireColors.length]}"/><circle cx="${x1}" cy="${y1}" r="4" fill="${wireColors[index%wireColors.length]}"/><circle cx="${x2}" cy="${y2}" r="4" fill="${wireColors[index%wireColors.length]}"/>`}).join("");
+  updateWiring3D();
 }
 function circuitIsComplete(){const actual=new Set(currentWires().map(edgeKey));return circuitPresets[currentProject().id].every(edge=>actual.has(edgeKey(edge)))}
-function renderCircuitResult(powered=false){const box=$("#circuitResult"),count=currentWires().length,total=circuitPresets[currentProject().id].length,complete=circuitIsComplete();$$('.circuit-component',$("#circuitComponents")).forEach(el=>el.classList.toggle("powered",powered&&complete));box.className=`circuit-result ${complete?"complete":""} ${powered&&complete?"powered":""}`;box.innerHTML=complete?`<span>${powered?"⚡":"✓"}</span><div><strong>${powered?"Circuito energizado na simulação":"Montagem completa"}</strong><p>${powered?"Os componentes responderam conforme o projeto. Agora compare com o código no laboratório.":"Todas as ligações esperadas foram encontradas. Clique em Testar circuito."}</p></div>`:`<span>${count}</span><div><strong>${count} de ${total} ligações esperadas</strong><p>Continue conectando os terminais ou carregue o exemplo para estudar o circuito completo.</p></div>`}
+function renderCircuitResult(powered=false){const box=$("#circuitResult"),count=currentWires().length,total=circuitPresets[currentProject().id].length,complete=circuitIsComplete();$$('.circuit-component',$("#circuitComponents")).forEach(el=>el.classList.toggle("powered",powered&&complete));box.className=`circuit-result ${complete?"complete":""} ${powered&&complete?"powered":""}`;box.innerHTML=complete?`<span>${powered?"⚡":"✓"}</span><div><strong>${powered?"Circuito energizado na simulação":"Montagem completa"}</strong><p>${powered?"Os componentes responderam conforme o projeto. Agora compare com o código no laboratório.":"Todas as ligações esperadas foram encontradas. Clique em Testar circuito."}</p></div>`:`<span>${count}</span><div><strong>${count} de ${total} ligações esperadas</strong><p>Continue conectando os terminais ou carregue o exemplo para estudar o circuito completo.</p></div>`;updateWiring3D()}
 function loadWiringExample(){pushWiringHistory();state.wiringByProject[wiringStorageId()]=circuitPresets[currentProject().id].map(edge=>[...edge]);localStorage.setItem("nexo-wiring",JSON.stringify(state.wiringByProject));saveStudentWorkspace();state.wiringSelected=null;updateWiringSelection();renderWirePaths();renderCircuitResult(true);showToast("Exemplo de ligação carregado")}
 function renderEspMode(){
   $$('[data-esp-mode]').forEach(button=>button.classList.toggle("active",button.dataset.espMode===state.espMode));
@@ -970,12 +1017,12 @@ function renderEspMode(){
   if(state.espMode==="mobilear")window.CodaAR?.activateMobile?.();
 }
 function save3DPrototype(){localStorage.setItem("nexo-3d-prototype",JSON.stringify(state.threeDComponents));localStorage.setItem("nexo-3d-wires",JSON.stringify(state.threeDWires||[]));saveStudentWorkspace()}
-const prototypePins=["3V3","VIN","GND","GPIO2","GPIO4","GPIO5","GPIO16","GPIO17","GPIO18","GPIO19","GPIO21","GPIO22","GPIO23","GPIO25","GPIO26","GPIO27","GPIO32","GPIO34","GPIO35"],prototypePinSides={left:["3V3","GND","GPIO2","GPIO4","GPIO5","GPIO16","GPIO17","GPIO18","GPIO19","GPIO21"],right:["VIN","GND_R","GPIO22","GPIO23","GPIO25","GPIO26","GPIO27","GPIO32","GPIO34","GPIO35"]};
+const prototypePinSides={left:window.CodaESPModel.left,right:window.CodaESPModel.right},prototypePins=[...prototypePinSides.left,...prototypePinSides.right].filter(pin=>!window.CodaESPModel.reserved.has(pin));
 function prototypeTerminalLabel(id){const [part,pin]=String(id).split(":");return part==="ESP32"?(pin==="GND_R"?"GND (direita)":pin):`${state.threeDComponents.find(item=>String(item.id)===part)?.label||"Componente"} ${pin}`}
 function prototypeWireEnds(wire){return Array.isArray(wire)?wire:[wire?.a,wire?.b]}
 function prototypeWireKey(edge){return prototypeWireEnds(edge).filter(Boolean).sort().join("|")}
 function prototypeTerminalElement(id){return $$('[data-prototype-terminal]').find(node=>node.dataset.prototypeTerminal===id)}
-function renderPrototypeWires(){const svg=$("#prototypeWireLayer"),stage=$("#prototypeStage");if(!svg||!stage)return;const rect=stage.getBoundingClientRect();svg.setAttribute("viewBox",`0 0 ${rect.width} ${rect.height}`);svg.innerHTML=(state.threeDWires||[]).map((wire,index)=>{const edge=prototypeWireEnds(wire),a=prototypeTerminalElement(edge[0]),b=prototypeTerminalElement(edge[1]);if(!a||!b)return "";const ar=a.getBoundingClientRect(),br=b.getBoundingClientRect(),x1=ar.left+ar.width/2-rect.left,y1=ar.top+ar.height/2-rect.top,x2=br.left+br.width/2-rect.left,y2=br.top+br.height/2-rect.top,m=(x1+x2)/2,color=wire.color||wireColors[index%wireColors.length];return `<path data-prototype-wire-index="${index}" d="M ${x1} ${y1} C ${m} ${y1}, ${m} ${y2}, ${x2} ${y2}" stroke="${color}"/><circle cx="${x1}" cy="${y1}" r="4" fill="${color}"/><circle cx="${x2}" cy="${y2}" r="4" fill="${color}"/>`}).join("");$$('[data-prototype-wire-index]',svg).forEach(path=>path.onclick=event=>{event.stopPropagation();state.threeDSelectedWire=Number(path.dataset.prototypeWireIndex);render3DProgrammer();showToast("Fio selecionado — escolha uma nova cor no inspetor")})}
+function renderPrototypeWires(){const svg=$("#prototypeWireLayer"),stage=$("#prototypeStage");if(!svg||!stage)return;const rect=stage.getBoundingClientRect();svg.setAttribute("viewBox",`0 0 ${rect.width} ${rect.height}`);svg.innerHTML=(state.threeDWires||[]).map((wire,index)=>{const edge=prototypeWireEnds(wire),a=prototypeTerminalElement(edge[0]),b=prototypeTerminalElement(edge[1]);if(!a||!b)return "";const ar=a.getBoundingClientRect(),br=b.getBoundingClientRect(),x1=ar.left+ar.width/2-rect.left,y1=ar.top+ar.height/2-rect.top,x2=br.left+br.width/2-rect.left,y2=br.top+br.height/2-rect.top,m=(x1+x2)/2,color=wire.color||wireColors[index%wireColors.length];return `<path data-prototype-wire-index="${index}" d="M ${x1} ${y1} C ${m} ${y1}, ${m} ${y2}, ${x2} ${y2}" stroke="${color}"/><circle cx="${x1}" cy="${y1}" r="4" fill="${color}"/><circle cx="${x2}" cy="${y2}" r="4" fill="${color}"/>`}).join("");$$('[data-prototype-wire-index]',svg).forEach(path=>path.onclick=event=>{event.stopPropagation();state.threeDSelectedWire=Number(path.dataset.prototypeWireIndex);render3DProgrammer();showToast("Fio selecionado — escolha uma nova cor no inspetor")});window.CodaCircuit3D?.update?.({components:state.threeDComponents,wires:state.threeDWires||[],simulating:state.threeDSimulating})}
 function connectPrototypeTerminals(source,target){if(!source||!target||source===target)return;if(source.split(":")[0]===target.split(":")[0]){showToast("Não é possível ligar dois terminais do mesmo componente");return}const edge=[source,target];if((state.threeDWires||[]).some(wire=>prototypeWireKey(wire)===prototypeWireKey(edge))){showToast("Esses terminais já estão conectados");return}const candidate=[...(state.threeDWires||[]),{a:source,b:target}];const evaluation=esp32CircuitLogic.evaluateCircuit({components:state.threeDComponents,wires:candidate});if(evaluation.faults.length){showToast(evaluation.faults[0]);const output=$("#prototypeOutput");if(output)output.textContent=`Ligação recusada: ${evaluation.faults[0]}`;return}state.threeDWires.push({a:source,b:target,color:$("#prototypeWireColor")?.value||"#ff5f6d"});save3DPrototype();render3DProgrammer();showToast(`Fio ligado: ${prototypeTerminalLabel(source)} → ${prototypeTerminalLabel(target)}`)}
 function bindPrototypeWireDrag(){const stage=$("#prototypeStage"),svg=$("#prototypeWireLayer");if(!stage||!svg)return;let active=null;$$('[data-prototype-terminal]').forEach(node=>{node.onclick=event=>{event.stopPropagation();if(node.dataset.skipClick){delete node.dataset.skipClick;return}const chosen=node.dataset.prototypeTerminal;if(!state.threeDWireSelection){state.threeDWireSelection=chosen;node.classList.add("selected");showToast(`${prototypeTerminalLabel(chosen)} selecionado — escolha o terminal de destino`);const output=$("#prototypeOutput");if(output)output.textContent=`Origem: ${prototypeTerminalLabel(chosen)} • escolha o terminal de destino.`;return}const first=state.threeDWireSelection;state.threeDWireSelection=null;$$('[data-prototype-terminal]').forEach(item=>item.classList.remove("selected"));if(first!==chosen)connectPrototypeTerminals(first,chosen)};node.onpointerdown=event=>{event.preventDefault();event.stopPropagation();active={source:node};node.setPointerCapture?.(event.pointerId);node.classList.add("dragging-terminal");const r=node.getBoundingClientRect(),s=stage.getBoundingClientRect();svg.insertAdjacentHTML("beforeend",`<path class="prototype-wire-preview" data-prototype-preview d="M ${r.left+r.width/2-s.left} ${r.top+r.height/2-s.top} L ${r.left+r.width/2-s.left} ${r.top+r.height/2-s.top}" stroke="#56b8ff"/>`)};node.onpointermove=event=>{if(!active)return;const r=active.source.getBoundingClientRect(),s=stage.getBoundingClientRect(),preview=$("[data-prototype-preview]",svg);if(preview)preview.setAttribute("d",`M ${r.left+r.width/2-s.left} ${r.top+r.height/2-s.top} L ${event.clientX-s.left} ${event.clientY-s.top}`)};node.onpointerup=event=>{if(!active)return;const source=active.source,target=document.elementFromPoint(event.clientX,event.clientY)?.closest?.("[data-prototype-terminal]");$("[data-prototype-preview]",svg)?.remove();source.classList.remove("dragging-terminal");active=null;if(target&&target!==source){source.dataset.skipClick="1";connectPrototypeTerminals(source.dataset.prototypeTerminal,target.dataset.prototypeTerminal)}}})}
 function loadPrototypeExample(){
@@ -1051,6 +1098,7 @@ function prototypeComponentTransform(item){return `--component-rotation:${item.r
 function updatePrototypeView(){
   const stage=$("#prototypeStage"),button=$("#prototypeViewToggle");if(!stage||!button)return;
   stage.classList.toggle("top-view",prototypeTopView);button.setAttribute("aria-pressed",String(prototypeTopView));button.textContent=prototypeTopView?"Vista 3D":"Vista superior";
+  window.CodaCircuit3D?.setView?.({pitch:prototypeTopView?86:53,yaw:-18,scale:1});
 }
 function bindPrototypeDrag(button,item){
   button.onpointerdown=event=>{
@@ -1061,7 +1109,7 @@ function bindPrototypeDrag(button,item){
   };
 }
 function render3DProgrammer(){
-  if(!$("#prototypeComponents"))return;const selected=state.threeDComponents.find(item=>item.id===state.threeDSelected);
+  if(!$("#prototypeComponents"))return;const stage=$("#prototypeStage"),canvas=$("#circuit3DCanvas"),renderer=window.CodaCircuit3D?.mount?.(canvas);stage?.classList.toggle("circuit-webgl-active",Boolean(renderer&&canvas&&!canvas.dataset.rendererError));const selected=state.threeDComponents.find(item=>item.id===state.threeDSelected);
   const circuitEvaluation=esp32CircuitLogic.evaluateCircuit({components:state.threeDComponents,wires:state.threeDWires||[]});
   if(state.threeDSimulating&&!circuitEvaluation.canRun){state.threeDSimulating=false;clearInterval(state.threeDTimer);state.threeDTimer=null}
   const readyLedIds=new Set(circuitEvaluation.readyLedIds),readyActiveIds=new Set(circuitEvaluation.activeConnectedIds);
@@ -1088,9 +1136,9 @@ function render3DProgrammer(){
   $("#threeDTemplates").innerHTML=`<div><span class="kicker">PROJETOS CONFIGURADOS PELO PROFESSOR</span><h3>Carregue um modelo pronto</h3></div><div>${all3DTemplates().map(item=>`<button data-3d-template="${item.id}" style="--template-color:${item.color}"><i></i><span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.pin)} • ${componentNames[item.type]}</small></span></button>`).join("")}</div>`;$$('[data-3d-template]').forEach(button=>button.onclick=()=>load3DTemplate(button.dataset['3dTemplate']));
   $("#componentPalette").onclick=event=>{const button=event.target.closest("[data-component-type]");if(button)create3DComponent(button.dataset.componentType)};$("#openGenerated3DCode").onclick=()=>{const evaluation=esp32CircuitLogic.evaluateCircuit({components:state.threeDComponents,wires:state.threeDWires||[]});if(!evaluation.canRun){showToast(evaluation.message);return}state.labLanguage="esp32";state.labMode="free";state.activity=null;state.labCode.esp32=generated3DCode();trackLearningEvent("projeto_3d_programado",{courseId:"esp32",components:state.threeDComponents.length});renderLab();goToView("laboratorio");showToast("Código gerado a partir do circuito conectado")};
 }
-function renderEsp(){createPins();const project=currentProject();$("#espProjects").innerHTML=espProjects.map((item,index)=>`<button class="${index===state.espProject?"active":""}" data-esp="${index}"><i>${item.icon}</i><span><strong>${item.title}</strong><small>${item.subtitle}</small></span></button>`).join("");$$('[data-esp]').forEach(button=>button.addEventListener("click",()=>{state.espProject=Number(button.dataset.esp);state.wiringSelected=null;renderEsp()}));$$(".pin-row i").forEach(pin=>pin.classList.toggle("active",project.pins.includes(pin.dataset.pin)));$("#wiringCard").innerHTML=`<h3>${project.title}</h3><p>${project.description}</p>${project.wires.map(wire=>`<span>${wire}</span>`).join("")}`;$("#userLed").classList.toggle("on",project.id==="blink"||project.id==="traffic");$("#sensorPulse").classList.toggle("active",project.id==="sensor");$("#openEspLab").onclick=()=>{state.labLanguage="esp32";state.labCode.esp32=project.code;state.activity={courseId:"esp32",lesson:Math.min(state.espProject+1,6),instruction:`Personalize o projeto ${project.title} e teste uma alteração.`};renderLab();goToView("laboratorio")};renderWiringWorkbench();render3DProgrammer();renderEspMode();dispatchCoda("esp32",{projectId:project.id,title:project.title,mode:state.espMode})}
+function renderEsp(){createPins();const project=currentProject();$("#espProjects").innerHTML=espProjects.map((item,index)=>`<button class="${index===state.espProject?"active":""}" data-esp="${index}"><i>${item.icon}</i><span><strong>${item.title}</strong><small>${item.subtitle}</small></span></button>`).join("");$$('[data-esp]').forEach(button=>button.addEventListener("click",()=>{state.espProject=Number(button.dataset.esp);state.wiringSelected=null;renderEsp()}));$("#wiringCard").innerHTML=`<h3>${project.title}</h3><p>${project.description}</p>${project.wires.map(wire=>`<span>${wire}</span>`).join("")}`;const canvas=$("#esp3DCanvas");if(canvas&&window.CodaESP3D){const renderer=window.CodaESP3D.renderer||window.CodaESP3D.mount(canvas);renderer?.setProject?.(project);updateBoard()}$("#openEspLab").onclick=()=>{state.labLanguage="esp32";state.labCode.esp32=project.code;state.activity={courseId:"esp32",lesson:Math.min(state.espProject+1,6),instruction:`Personalize o projeto ${project.title} e teste uma alteração.`};renderLab();goToView("laboratorio")};renderWiringWorkbench();render3DProgrammer();renderEspMode();dispatchCoda("esp32",{projectId:project.id,title:project.title,mode:state.espMode})}
 let boardX=52,boardZ=-23,boardScale=1,dragging=false,lastX=0,lastY=0;
-function updateBoard(){$("#espBoard").style.transform=`translate(-50%,-50%) rotateX(${boardX}deg) rotateZ(${boardZ}deg) scale(${boardScale})`}
+function updateBoard(){window.CodaESP3D?.setView?.({pitch:boardX,yaw:boardZ,scale:boardScale})}
 
 const subjectQuizData={
   html:[{l:"Iniciante",q:"Qual elemento representa o conteúdo principal único da página?",o:["<main>","<meta>","<aside>","<style>"],a:0,e:"main identifica o conteúdo principal do documento."},{l:"Intermediário",q:"Qual associação torna um campo de formulário mais acessível?",o:["placeholder e div","label com for e input com id","span e class","title e style"],a:1,e:"for e id criam uma relação programática entre rótulo e campo."},{l:"Avançado",q:"Por que semântica não deve ser escolhida apenas pela aparência?",o:["Porque todos os elementos têm a mesma aparência","Porque significado auxilia acessibilidade, manutenção e indexação","Porque CSS deixa de funcionar","Porque o navegador bloqueia div"],a:1,e:"O significado estrutural é consumido por navegadores, ferramentas e tecnologias assistivas."}],
@@ -1442,9 +1490,9 @@ function bindEvents(){
   $$('[data-esp-mode]').forEach(button=>button.addEventListener("click",()=>{
     state.espMode=button.dataset.espMode;
     renderEspMode();
-    // Um único clique no ícone 🥽 já solicita a sessão immersive-ar.
-    // O próprio clique funciona como gesto exigido pelos navegadores XR.
-    if(state.espMode==="ar") window.CodaAR?.enterAR?.({mode:"view",device:"headset"});
+    // No modo de óculos o aluno escolhe VR fechado ou RA com passthrough antes
+    // de abrir a sessão WebXR. Isso evita iniciar a experiência errada.
+    if(state.espMode==="ar") window.CodaAR?.activate?.();
     if(state.espMode==="mobilear") window.CodaAR?.enterMobileAR?.();
   }));
   $("#loadWiringExample").onclick=loadWiringExample;
@@ -1453,7 +1501,7 @@ function bindEvents(){
   $("#powerCircuit").onclick=()=>{renderCircuitResult(true);showToast(circuitIsComplete()?"Circuito funcionando na simulação":"Complete as ligações antes de testar")};
   let simDigitalHigh=false;const updateSignal=()=>{const value=Number($("#simAnalog").value);$("#simAnalogValue").textContent=value;$("#simVoltage").textContent=`${(value/4095*3.3).toFixed(2)} V`;$("#simDigital").textContent=`${simDigitalHigh?"● DIGITAL HIGH":"○ DIGITAL LOW"}`;$("#simDigital").classList.toggle("active",simDigitalHigh);$("#espScene").classList.toggle("sim-high",simDigitalHigh&&$("#simGpio").value==="GPIO2")};
   $("#simAnalog").oninput=updateSignal;$("#simGpio").onchange=updateSignal;$("#simDigital").onclick=()=>{simDigitalHigh=!simDigitalHigh;updateSignal();showToast(`${$("#simGpio").value} em ${simDigitalHigh?"HIGH":"LOW"}`)};updateSignal();
-  const scene=$("#espScene");scene.addEventListener("pointerdown",event=>{dragging=true;lastX=event.clientX;lastY=event.clientY;scene.setPointerCapture(event.pointerId)});scene.addEventListener("pointermove",event=>{if(!dragging)return;boardZ+=(event.clientX-lastX)*.35;boardX=Math.max(5,Math.min(82,boardX-(event.clientY-lastY)*.25));lastX=event.clientX;lastY=event.clientY;updateBoard()});scene.addEventListener("pointerup",()=>dragging=false);scene.addEventListener("wheel",event=>{event.preventDefault();boardScale=Math.max(.7,Math.min(1.35,boardScale-event.deltaY*.001));updateBoard()},{passive:false});
+  const scene=$("#espScene");scene.addEventListener("pointerdown",event=>{if(event.target.closest("button"))return;dragging=true;lastX=event.clientX;lastY=event.clientY;scene.setPointerCapture(event.pointerId)});scene.addEventListener("pointermove",event=>{if(!dragging)return;boardZ+=(event.clientX-lastX)*.35;boardX=Math.max(5,Math.min(82,boardX-(event.clientY-lastY)*.25));lastX=event.clientX;lastY=event.clientY;updateBoard()});scene.addEventListener("pointerup",()=>dragging=false);scene.addEventListener("wheel",event=>{event.preventDefault();boardScale=Math.max(.7,Math.min(1.35,boardScale-event.deltaY*.001));updateBoard()},{passive:false});
   $$('[data-level]').forEach(button=>button.addEventListener("click",()=>{$$('[data-level]').forEach(item=>item.classList.remove("active"));button.classList.add("active");state.quizLevel=button.dataset.level;resetQuiz()}));
   $$('[data-assessment-mode]').forEach(button=>button.addEventListener("click",()=>setAssessmentMode(button.dataset.assessmentMode)));$("#quizDifficulty").addEventListener("change",()=>{if(state.quizMode==="subjects")renderQuiz()});
   $$('[data-topic]').forEach(button=>button.addEventListener("click",()=>{$$('[data-topic]').forEach(item=>item.classList.remove("active"));button.classList.add("active");state.communityTopic=button.dataset.topic;renderPosts()}));
@@ -1468,6 +1516,11 @@ window.CodaCore={
   navigate:goToView,
   showTeacherSection,
   getCurrentUser:()=>state.student,
+  getESPMode:()=>state.espMode,
+  stopPrototypeSimulation:()=>{if(state.threeDSimulating)set3DSimulation(false)},
+  getGenerated3DCode:()=>generated3DCode(),
+  runPhysicalEspCode,
+  stopPhysicalEsp:stopEsp,
   getLearningContext(){const course=courseById(state.currentCourse),key=`${course.id}:${state.currentLesson}`;return {student:state.student,courseId:course.id,courseName:course.name,lesson:state.currentLesson,lessonTitle:lessonTitle(course,state.currentLesson),progress:coursePercent(course.id),completed:{...state.completed},activities:{...state.activities},lessonChecks:{...state.lessonChecks},adaptiveResults:{...state.adaptiveResults},currentKey:key,language:state.labLanguage,currentCode:currentLabEditorCode(),lessonCode:lessonCode(course,state.currentLesson),activity:state.activity}},
   markAdaptiveResult(courseId,lesson,result){const key=`${courseId}:${lesson}`,previous=state.adaptiveResults[key]||{};state.adaptiveResults[key]={...previous,...result,attempts:Number(previous.attempts||0)+1,updatedAt:new Date().toISOString()};saveStudentWorkspace();trackLearningEvent("exercicio_adaptativo",{courseId,lesson,correct:Boolean(result.correct)});return state.adaptiveResults[key]},
   sendTutorMessage,
@@ -1495,5 +1548,5 @@ window.CodaCore={
   }
 };
 
-async function init(){document.documentElement.dataset.theme=localStorage.getItem("nexo-theme")||"light";applyAccessibility();courseBlueprints.forEach(course=>{state.labCode[course.id]=starters[course.id].code});await loadDatabase();await bindStudentAccess();bindAccountSecurity();bindEvents();bindLabV2();bindTeacherArea();renderCourses();renderVideos();renderLab();renderEsp();renderQuiz();renderPosts();updateDashboard();renderStudentHub();updateBoard();bindCollapsibleSections();registerOfflineSupport();loadVLibrasWhenIdle();window.addEventListener("resize",()=>requestAnimationFrame(renderWirePaths));dispatchCoda("ready",{user:state.student})}
+async function init(){document.documentElement.dataset.theme="light";try{localStorage.setItem("nexo-theme","light")}catch{}applyAccessibility();courseBlueprints.forEach(course=>{state.labCode[course.id]=starters[course.id].code});await loadDatabase();await bindStudentAccess();bindAccountSecurity();bindEvents();bindLabV2();bindTeacherArea();const mobileFast=window.CodaDeviceMode?.isMobile?.();if(!mobileFast){renderCourses();renderVideos();renderLab();renderEsp();renderQuiz();renderPosts();updateDashboard();renderStudentHub();updateBoard();loadVLibrasWhenIdle()}bindCollapsibleSections();registerOfflineSupport();window.addEventListener("resize",()=>requestAnimationFrame(renderWirePaths));dispatchCoda("ready",{user:state.student})}
 init();

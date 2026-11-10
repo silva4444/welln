@@ -1,0 +1,14 @@
+/* CODA 14.5: acabamento visual, abas e experiência WebXR. */
+:where(button,a,input,select,textarea,[tabindex]):focus-visible{outline:3px solid color-mix(in srgb,var(--lime,#7658e8) 72%,white);outline-offset:3px}
+.view,.page-content,.student-platform-grid,.teacher-workspace,.admin-workspace{min-width:0}
+.platform-card,.learning-card,.teacher-editor,.admin-card{overflow-wrap:anywhere}
+.lt-tabs{max-width:100%;overflow-x:auto;scrollbar-width:thin;scroll-snap-type:x proximity}
+.lt-tabs>button{scroll-snap-align:start;white-space:nowrap}
+.xr-experience-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0}
+.xr-experience-picker button{display:flex;align-items:center;gap:11px;min-height:76px;padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--surface-2);color:var(--text);text-align:left;cursor:pointer}
+.xr-experience-picker button>span{display:grid;place-items:center;width:40px;height:40px;flex:0 0 40px;border-radius:11px;background:var(--surface-3);font-size:20px}
+.xr-experience-picker strong,.xr-experience-picker small{display:block}.xr-experience-picker small{margin-top:4px;color:var(--muted);line-height:1.35}
+.xr-experience-picker button.active{border-color:var(--lime);box-shadow:inset 3px 0 var(--lime);background:color-mix(in srgb,var(--lime) 7%,var(--surface-2))}
+html[data-sync-status="saving"] .online i{background:#f4b860;box-shadow:0 0 8px #f4b860}
+html[data-sync-status="offline"] .online i{background:#ff6b6b;box-shadow:0 0 8px #ff6b6b}
+@media(max-width:760px){.xr-experience-picker{grid-template-columns:1fr}.ar-actions{display:grid;grid-template-columns:1fr}.ar-actions button{width:100%}.lt-tabs>button{min-width:max-content}.teacher-management-grid,.admin-grid{grid-template-columns:1fr!important}}

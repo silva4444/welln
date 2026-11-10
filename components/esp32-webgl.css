@@ -1,0 +1,259 @@
+/* Bancada ESP32: o modelo principal e a RA usam canvas WebGL, não ilustrações 2D. */
+.esp-scene {
+  position: relative;
+  min-height: 560px;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(83, 209, 174, .18), transparent 35%),
+    linear-gradient(145deg, #071219, #0b1c25 58%, #071015);
+}
+
+.esp-scene::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 110%, rgba(29, 194, 146, .2), transparent 42%);
+  z-index: -1;
+}
+
+#esp3DCanvas {
+  display: block;
+  width: 100%;
+  height: 560px;
+  min-height: 560px;
+  cursor: grab;
+  touch-action: none;
+}
+
+#esp3DCanvas:active { cursor: grabbing; }
+
+.esp-3d-overlay {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  right: 18px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.esp-3d-badge,
+.esp-3d-overlay small {
+  padding: 7px 10px;
+  border: 1px solid rgba(185, 255, 59, .32);
+  border-radius: 999px;
+  background: rgba(4, 16, 21, .76);
+  color: #c8ffd1;
+  font: 800 10px/1.2 "DM Mono", monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+}
+
+.esp-3d-overlay small {
+  color: #d4e3ea;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+
+.esp-scene .scene-hint {
+  bottom: 16px;
+  z-index: 2;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  background: rgba(4, 12, 17, .72);
+  color: #c5d3da;
+  font-size: 11px;
+  backdrop-filter: blur(8px);
+}
+
+.mobile-ar-stage { overflow: hidden; }
+#mobileARCanvas {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 300px;
+  height: 420px;
+  display: block;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+#mobileARCanvas[hidden], .mobile-ar-reticle[hidden] { display: none !important; }
+#mobileARCanvas:active { cursor: grabbing; }
+
+.mobile-ar-overlay .mobile-ar-controls { z-index: 8; }
+
+/* A bancada de fios também mantém profundidade: placa, componentes e trilhos
+   ficam em planos diferentes, sem voltar ao antigo seletor de visualização 2D. */
+.wiring-board.wiring-board-3d {
+  perspective: 1200px;
+  transform-style: preserve-3d;
+  background:
+    radial-gradient(circle at 34% 38%, rgba(39, 179, 137, .2), transparent 30%),
+    linear-gradient(145deg, #0a1720, #071018 65%, #050b11);
+}
+
+.wiring-board.wiring-board-3d::before {
+  opacity: .75;
+  transform: perspective(900px) rotateX(62deg) translateY(11%) scale(1.18);
+  transform-origin: center bottom;
+  background-size: 30px 30px;
+}
+
+.wiring-board-3d .wiring-esp {
+  transform: rotateX(9deg) rotateY(-7deg) translateZ(34px);
+  transform-style: preserve-3d;
+  box-shadow: 0 16px 0 #062a20, 0 28px 55px rgba(0,0,0,.45), 0 0 0 1px rgba(168,255,205,.2) inset;
+}
+
+.wiring-board-3d .component-bench {
+  perspective: 900px;
+  transform-style: preserve-3d;
+}
+
+.wiring-board-3d .circuit-component {
+  transform: translateZ(24px) rotateX(5deg);
+  transform-style: preserve-3d;
+  box-shadow: 0 16px 25px rgba(0,0,0,.28), 0 0 0 1px rgba(107,168,192,.12) inset;
+}
+
+.wiring-board-3d .circuit-component:hover,
+.wiring-board-3d .circuit-component.selected {
+  transform: translateZ(38px) rotateX(5deg);
+}
+
+.wiring-board-3d .wire-layer {
+  transform: translateZ(48px);
+}
+
+.wiring-board-3d .breadboard-rails {
+  position: absolute;
+  inset: 22px 26px auto;
+  z-index: 1;
+  display: flex;
+  gap: 10px;
+  height: 28px;
+  transform: rotateX(62deg) translateZ(-8px);
+  transform-origin: center top;
+  opacity: .7;
+}
+
+.wiring-board-3d .breadboard-rails i {
+  flex: 1;
+  height: 4px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, rgba(86,184,255,.42), transparent);
+  box-shadow: 0 10px 0 rgba(185,255,59,.16);
+}
+
+.circuit-projected-controls { position:absolute; inset:0; z-index:9; pointer-events:none; }
+.circuit-projected-controls button { position:absolute; transform:translate(-50%,-50%); pointer-events:auto; padding:3px 5px; min-height:22px; border:1px solid #bfa555; border-radius:5px; background:#13282eee; color:#fff; font:700 9px monospace; cursor:crosshair; }
+.circuit-projected-controls button.selected { background:#486719; outline:2px solid #b9ff3b; }
+.circuit-projected-controls button { font-size:12px; font-weight:800; background:#071c29; border-color:#e4c96c; padding:4px 6px; min-height:27px; white-space:nowrap; text-shadow:0 1px 2px #000; box-shadow:0 2px 5px #0009; }
+.circuit-projected-controls .piece-handle { cursor:grab; touch-action:none; border-color:#76ced6; background:#123845; }
+.circuit-projected-controls .piece-handle:active { cursor:grabbing; }
+.circuit-projected-controls button:focus-visible { outline:3px solid #fff; z-index:3; }
+.circuit-projected-controls button { font-size:14px; }
+.circuit-projected-controls .board-pin-label { width:90px; height:32px; padding:4px; font-size:16px; line-height:22px; letter-spacing:.02em; z-index:2; background:#061722; color:#fff; border:2px solid #edce68; }
+.pin-label-guides { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+.pin-label-guides line { stroke:#edce68; stroke-width:1.2; opacity:.6; pointer-events:none; }
+.pin-label-guides circle { fill:#b9ff3b; stroke:#fff; stroke-width:2; pointer-events:none; }
+.circuit-projected-controls .pin-visibility-toggle { top:16px; right:12px; left:auto; transform:none; z-index:4; border-color:#76ced6; font-size:12px; min-height:34px; }
+.circuit-projected-controls .board-pin-label:hover,
+.circuit-projected-controls .board-pin-label:focus-visible { background:#345520; border-color:#b9ff3b; }
+.circuit-projected-controls button[hidden] { display:none !important; }
+#espProgramPanel .circuit-webgl-active .prototype-esp,
+#espProgramPanel .circuit-webgl-active #prototypeComponents,
+#espProgramPanel .circuit-webgl-active .prototype-wire-layer,
+#wiringBoard.wiring-webgl-active .wiring-esp,
+#wiringBoard.wiring-webgl-active #circuitComponents,
+#wiringBoard.wiring-webgl-active .wire-layer { visibility:hidden !important; pointer-events:none !important; }
+#wiringBoard.wiring-webgl-active::before { display:none; }
+@media (max-width: 700px) {
+  .esp-scene, #esp3DCanvas { min-height: 470px; height: 470px; }
+  .esp-3d-overlay { flex-direction: column; }
+  #mobileARCanvas { width: 240px; height: 340px; }
+}
+
+/* Bancada de montagem e código visível na RA do celular, sem bloquear a câmera. */
+.mobile-ar-led-status{position:absolute;z-index:6;top:76px;left:12px;right:12px;width:max-content;max-width:calc(100% - 24px);margin:auto;padding:8px 12px;border:1px solid #ffffff55;border-radius:12px;background:#051824df;color:#f8fff9;font-size:12px;box-shadow:0 5px 20px #0005;pointer-events:none}
+.mobile-ar-workbench{position:absolute;z-index:10;left:8px;right:8px;bottom:calc(max(16px,env(safe-area-inset-bottom)) + 70px);display:grid;justify-items:center;max-height:72dvh;pointer-events:none}
+.mobile-ar-tool-tabs{display:flex;gap:5px;max-width:460px;width:100%;padding:6px;border:1px solid #ffffff44;border-radius:14px;background:#0a1b22ed;pointer-events:auto}
+.mobile-ar-tool-tabs button{flex:1;min-height:43px;border:1px solid #ffffff2c;background:#18313d;color:#f9fff9;border-radius:10px;font-size:12px;font-weight:750}
+.mobile-ar-tool-tabs button.active{border-color:#b4ff78;background:#295836;color:white}
+.mobile-ar-drawer{pointer-events:auto;width:100%;max-width:520px;max-height:58dvh;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;padding:14px;border:1px solid #bde1d67e;border-radius:15px 15px 7px 7px;background:#0b1c25f5;color:#f7faf7;box-shadow:0 -8px 28px #000a;font-size:13px}
+.mobile-ar-drawer[hidden]{display:none!important}.mobile-ar-drawer h3{margin:0 0 6px;font-size:17px;color:#fff}.mobile-ar-drawer p{line-height:1.45;color:#d3e9e4;font-size:12px;margin:0 0 12px}.mobile-ar-drawer code{color:#b9ff9a}.mobile-ar-add-row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}.mobile-ar-add-row button{flex:1;min-height:42px;padding:8px;border-radius:8px;border:1px solid #607c88;background:#284452;color:#fff;font-weight:700}.mobile-ar-add-row button.mobile-ar-run{background:#326c3b;border-color:#a0e790}.ar-drawer-subhead{display:block;font-size:12px;margin:12px 0 7px;color:#efffe5}.mobile-ar-terminals{display:flex;flex-wrap:wrap;gap:6px}.mobile-ar-terminals button,.mobile-ar-part button.endpoint{min-height:38px;padding:7px 10px;border-radius:9px;background:#1e3f4b;color:#fff;border:1px solid #71929f;font-size:12px}.mobile-ar-terminals button[data-selected="true"],.mobile-ar-part button.endpoint[data-selected="true"]{background:#337840;outline:2px solid #c1f58d}.mobile-ar-parts{display:grid;gap:7px}.mobile-ar-part{padding:10px;border:1px solid #49646b;border-radius:11px;background:#142e38}.mobile-ar-part-title{display:flex;gap:6px;align-items:center;margin-bottom:8px}.mobile-ar-part-title strong{flex:1}.mobile-ar-part-title button{border-radius:7px;border:1px solid #627c84;background:#2c4650;color:#fff;padding:6px 10px}.mobile-ar-part-buttons{display:flex;flex-wrap:wrap;gap:6px}.mobile-ar-part select{min-height:38px;border-radius:7px;background:#142f3a;color:#fff;border:1px solid #71929f}.mobile-ar-wiring-feedback{border:1px solid #5c777c;padding:10px;border-radius:8px;background:#1b3945;margin:12px 0;font-size:12px;color:#effff5}.mobile-ar-wire-list{display:grid;gap:5px;color:#dfeccf;font-size:12px}.mobile-ar-wire-list>div{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:5px 8px;border-bottom:1px solid #3a535a}.mobile-ar-wire-list button{background:transparent;color:#ffb9a9;border:0;font-size:18px}.mobile-ar-code-label{display:block;font-weight:700;margin:9px 0 6px}.mobile-ar-drawer textarea{display:block;width:100%;min-height:180px;max-height:340px;resize:vertical;touch-action:pan-y;user-select:text;-webkit-user-select:text;border:1px solid #90a1b1;border-radius:9px;background:#08141e;color:#e7ffe4;font:12px/1.5 ui-monospace,monospace;padding:10px;white-space:pre;tab-size:2}
+@media(max-width:450px){.mobile-ar-tool-tabs button{font-size:11px}.mobile-ar-led-status{font-size:11px}.mobile-ar-workbench{bottom:calc(max(12px,env(safe-area-inset-bottom)) + 68px)}}
+
+/* CODA RA Studio — ferramentas curtas e operação por toque. */
+.mobile-ar-overlay { font-family: inherit; }
+.mobile-ar-overlay .mobile-ar-topbar {
+  padding: max(14px, env(safe-area-inset-top)) 16px 13px;
+  background: linear-gradient(180deg,rgba(5,19,28,.95),rgba(5,19,28,.55) 70%,transparent);
+}
+.mobile-ar-overlay .mobile-ar-topbar strong { font-size: 15px; letter-spacing: .01em; }
+.mobile-ar-overlay .mobile-ar-led-status { top: 84px; color: #eaffeb; border-color:rgba(187,251,201,.38); background:rgba(5,29,30,.78); font-weight:650; }
+.mobile-ar-workbench { gap: 6px; }
+.mobile-ar-quick-actions {
+  width: min(100%,480px); display: grid; grid-template-columns: 1.15fr .8fr .9fr;
+  gap: 6px; pointer-events: auto;
+}
+.mobile-ar-quick-actions button {
+  min-height: 44px; padding: 7px 8px; border: 1px solid rgba(194,242,234,.36);
+  background: rgba(9,29,37,.94);color:#f7fffb;border-radius:12px;
+  box-shadow:0 5px 18px rgba(0,0,0,.28);font-weight:750;font-size:12px;
+}
+.mobile-ar-quick-actions button:disabled {opacity:.58;cursor:not-allowed}
+.mobile-ar-quick-actions button.is-locked { background:rgba(37,91,52,.97);border-color:#aff0b0; }
+.mobile-ar-quick-actions button:last-child {background:rgba(45,113,64,.96);border-color:#9bdda2}
+.mobile-ar-view-help {
+  pointer-events: none; max-width:480px;width:100%;text-align:center;
+  padding:8px 12px; border:1px solid rgba(185,232,234,.24);
+  background:rgba(5,18,27,.77);color:#ebf6f6;border-radius:12px;
+  font-size:11px;line-height:1.4;backdrop-filter:blur(8px);
+}
+.mobile-ar-view-help[hidden] {display:none!important}
+.mobile-ar-tool-tabs {border-radius:12px; backdrop-filter:blur(14px); }
+.mobile-ar-tool-tabs button {min-height:46px;letter-spacing:.01em}
+.mobile-ar-tool-tabs button.active {box-shadow:inset 0 0 0 1px rgba(227,255,194,.35)}
+.mobile-ar-drawer {border-radius:18px 18px 12px 12px;max-height:min(58dvh,590px);}
+.mobile-ar-overlay[data-tool="code"] .mobile-ar-drawer {max-height:min(64dvh,660px);}
+.mobile-ar-drawer .mobile-ar-editor-main {display:grid;grid-template-columns:1fr 1.3fr .75fr;}
+.mobile-ar-drawer .mobile-ar-editor-main button {min-width:0;}
+.mobile-ar-overlay[data-tool="code"] #mobileARCode {
+  min-height:220px;font-size:13px;line-height:1.55;
+  border-color:#5b9c99;outline-offset:2px;
+}
+.mobile-ar-overlay #mobileARCanvas {filter: drop-shadow(0 12px 12px rgba(0,0,0,.36));}
+.mobile-ar-overlay #mobileARCanvas:active {cursor:grabbing}
+@media(max-width:500px){
+  .mobile-ar-quick-actions button {font-size:11px;padding:6px;min-height:42px}
+  .mobile-ar-workbench {bottom:calc(max(12px,env(safe-area-inset-bottom)) + 67px)}
+  .mobile-ar-drawer {max-height:52dvh;padding:12px;}
+  .mobile-ar-overlay[data-tool="code"] .mobile-ar-drawer {max-height:57dvh;}
+  .mobile-ar-view-help {font-size:10.5px}
+  .mobile-ar-overlay .mobile-ar-led-status {top:77px;font-size:10px}
+  .mobile-ar-controls button {font-size:13px}
+}
+@media(orientation:landscape) and (max-height:520px){
+  .mobile-ar-overlay .mobile-ar-led-status{display:none}
+  .mobile-ar-drawer{max-height:49dvh}
+  .mobile-ar-view-help{display:none}
+  .mobile-ar-workbench{bottom:calc(env(safe-area-inset-bottom) + 57px)}
+}
+
+/* Menos botões por padrão, ajuste fino acessível sob demanda. */
+.mobile-ar-wiring-guide {margin:0 0 6px!important}
+.mobile-ar-expand-pins {display:block;min-height:36px;width:100%;margin:8px 0 13px;background:rgba(32,75,82,.9);border:1px solid #668d96;border-radius:9px;color:#e8f9ff;font-weight:700;cursor:pointer}
+.mobile-ar-fine-adjust {margin-top:9px;border-top:1px solid rgba(196,238,238,.18);padding-top:8px}
+.mobile-ar-fine-adjust summary {font-size:11px;color:#bed6da;cursor:pointer;list-style:revert}
+.mobile-ar-fine-axes {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding-top:9px}
+.mobile-ar-fine-axes label {display:grid;gap:5px;font-size:11px;color:#cfe6e8}
+.mobile-ar-fine-axes input[type="range"] {width:100%}

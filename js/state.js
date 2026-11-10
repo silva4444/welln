@@ -62,6 +62,7 @@ export function saveStudentWorkspace(state) {
   localStorage.setItem(studentStorageKey("nexo-study-minutes", state.student), JSON.stringify(state.studyMinutes));
   localStorage.setItem(studentStorageKey("nexo-daily-goal", state.student), String(state.dailyGoal));
   localStorage.setItem(studentStorageKey("nexo-lab-code", state.student), JSON.stringify(state.labCode));
+  localStorage.setItem(studentStorageKey("nexo-workspace-updated-at", state.student), new Date().toISOString());
   return true;
 }
 

@@ -217,6 +217,27 @@
   right: 14px; bottom: 14px; left: 14px; max-height: 78px; padding: 10px 12px;
   font-size: 11px; line-height: 1.45; white-space: normal;
 }
+
+/* A bancada guiada usa a mesma cena WebGL que o programador: fios e peças
+   são desenhados no espaço 3D. Os terminais HTML continuam clicáveis. */
+#wiringBoard { position: relative; isolation: isolate; }
+#wiring3DCanvas {
+  position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%;
+  display: block; pointer-events: auto; cursor: grab; touch-action: none;
+}
+#wiring3DCanvas:active { cursor: grabbing; }
+#wiringBoard.wiring-webgl-active .wire-layer path { stroke: transparent !important; filter: none; }
+#wiringBoard.wiring-webgl-active .wire-layer circle { opacity: 0; }
+#wiringBoard.wiring-webgl-active .wiring-esp { opacity: 0; pointer-events: none; }
+#wiringBoard.wiring-webgl-active .breadboard-rails { opacity: 0; }
+#wiringBoard.wiring-webgl-active .circuit-component {
+  background: transparent; border-color: transparent; box-shadow: none; color: transparent;
+}
+#wiringBoard.wiring-webgl-active .circuit-component > :not(.component-terminals) { opacity: 0; }
+#wiringBoard.wiring-webgl-active .circuit-component .component-terminals { opacity: 1; }
+#wiringBoard.wiring-webgl-active .component-terminals button { position: relative; z-index: 8; }
+#wiringBoard.wiring-webgl-active .wiring-pin-bank { opacity: 0; }
+#wiringBoard.wiring-webgl-active [data-terminal^="PIN:"] { position: relative; z-index: 8; }
 #espProgramPanel .library-hint,
 #espProgramPanel .inspector-tip,
 #espProgramPanel .inspector-steps span { color: var(--muted); font-size: 11px; line-height: 1.5; }

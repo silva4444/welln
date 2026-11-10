@@ -1,17 +1,19 @@
 <!doctype html>
-<html lang="pt-BR" data-theme="dark">
+<html lang="pt-BR" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="description" content="Coda Educacional com portais de administrador, professor e aluno, conteúdo completo e banco SQLite local.">
-  <meta name="theme-color" content="#5b3cc4">
+  <meta name="description" content="CODA Educacional com progresso sincronizado, portais acadêmicos e laboratório ESP32 em VR/RA.">
+  <meta name="theme-color" content="#f7f4ee">
   <meta name="csp-nonce" content="">
-  <title>Coda Educacional | Versão 10.5 Institucional</title>
+  <title>CODA Educacional | Versão 14.5</title>
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://vlibras.gov.br" crossorigin>
   <link rel="dns-prefetch" href="//vlibras.gov.br">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap">
-  <link rel="stylesheet" href="style.css?v=11.0.0">
+  <link rel="stylesheet" href="style.css?v=14.5.0">
+  <script src="js/device-mode.js?v=12.3.0"></script>
+  <link rel="stylesheet" href="components/esp32-reference.css?v=14.3.0">
 </head>
 <body>
   <a class="skip-link" href="#mainContent">Pular para o conteúdo principal</a>
@@ -22,7 +24,7 @@
         <span class="eyebrow" id="loginEnvironment"><i></i> AMBIENTE DO ALUNO</span>
         <h1 id="loginHeroTitle">Seu estudo, seus projetos,<br><em>seu progresso.</em></h1>
         <p id="loginHeroText">Entre para acessar 14 trilhas, 98 aulas, laboratórios de código, vídeos e a bancada interativa do ESP32.</p>
-        <div class="login-features" id="loginFeatures"><span>✓ Aulas com contexto</span><span>✓ Prática no laboratório</span><span>✓ Progresso no navegador</span></div>
+        <div class="login-features" id="loginFeatures"><span>✓ Aulas com contexto</span><span>✓ Prática no laboratório</span><span>✓ Progresso sincronizado</span></div>
       </div>
       <div class="login-orbit"><span>HTML</span><span>JS</span><span>PY</span><span>ESP32</span><b>&lt;/&gt;</b></div>
     </div>
@@ -234,41 +236,82 @@
 
         <section class="view" id="esp32">
           <div class="page-heading"><div><span class="kicker">HARDWARE INTERATIVO</span><h1>Laboratório ESP32 em 3D</h1><p>Explore a placa e mude para o modo fios para montar circuitos com LED, resistores, botões e sensores.</p></div><div class="scene-controls"><button data-rotate="left">←</button><button data-rotate="up">↑</button><button data-rotate="down">↓</button><button data-rotate="right">→</button><button data-rotate="reset">↻</button></div></div>
-          <div class="esp-mode-tabs"><button class="active" data-esp-mode="model"><span>◈</span><div><strong>Modelo 3D</strong><small>Gire e conheça os pinos</small></div></button><button data-esp-mode="wiring"><span>⌁</span><div><strong>Modo fios</strong><small>Monte e teste o circuito</small></div></button><button data-esp-mode="program"><span>&lt;/&gt;</span><div><strong>Programador 3D</strong><small>Adicione e programe componentes</small></div></button><button data-esp-mode="ar"><span>🥽</span><div><strong>RA com óculos</strong><small>Use WebXR no headset</small></div></button><button data-esp-mode="mobilear"><span>📱</span><div><strong>RA no celular</strong><small>Veja o ESP32 pela câmera</small></div></button></div>
-          <div class="esp-signal-lab"><div><span class="kicker">SIMULADOR DE SINAIS</span><h2>Teste entradas e saídas sem placa física</h2><p>Escolha um GPIO, altere o sinal digital ou o valor analógico e veja a resposta no painel.</p></div><label>GPIO<select id="simGpio"><option>GPIO2</option><option>GPIO4</option><option>GPIO5</option><option>GPIO18</option><option>GPIO21</option><option>GPIO25</option><option>GPIO26</option></select></label><label>Sinal analógico<input id="simAnalog" type="range" min="0" max="4095" value="2048"><b id="simAnalogValue">2048</b></label><button id="simDigital">○ DIGITAL LOW</button><div class="signal-readout"><span id="simVoltage">1.65 V</span><small>Leitura simulada</small></div></div>
+          <div class="esp-mode-tabs"><button class="active" data-esp-mode="model"><span>◈</span><div><strong>Modelo 3D</strong><small>Gire e conheça os pinos</small></div></button><button data-esp-mode="wiring"><span>⌁</span><div><strong>Modo fios</strong><small>Monte e teste o circuito</small></div></button><button data-esp-mode="program"><span>&lt;/&gt;</span><div><strong>Programador 3D</strong><small>Adicione e programe componentes</small></div></button><button data-esp-mode="ar"><span>🥽</span><div><strong>Óculos VR / RA</strong><small>Ambiente virtual ou bancada real</small></div></button><button data-esp-mode="mobilear"><span>📱</span><div><strong>RA no celular</strong><small>Veja o ESP32 pela câmera</small></div></button></div>
+          <div class="esp-hardware-strip">
+            <div class="hardware-identity"><span class="kicker">ESP-WROOM-32 · 38 PINOS</span><strong id="espHardwareState">○ Placa pronta</strong><span id="espBuiltinLED">○ GPIO2 · LOW</span></div>
+            <div class="hardware-buttons"><button type="button" id="espReset">↻ EN / Reset</button><button type="button" id="espBoot" aria-pressed="false">BOOT / GPIO0</button></div>
+            <label class="hardware-adc">Entrada simulada<select id="simGpio"><option>GPIO34</option><option>GPIO35</option><option>GPIO32</option><option>GPIO33</option><option>GPIO36</option><option>GPIO39</option><option>GPIO2</option><option>GPIO4</option><option>GPIO25</option><option>GPIO26</option></select></label>
+            <label class="hardware-pot">Potenciômetro / ADC<input id="simAnalog" type="range" min="0" max="4095" value="2048"><b id="simAnalogValue">2048 / 4095</b></label><div class="hardware-voltage"><strong id="simVoltage">1.65 V</strong><small>0–3,3 V · 12 bits</small></div><button type="button" id="simDigital">○ DIGITAL LOW</button>
+          </div>
           <div id="espModelPanel">
             <div class="esp-workspace">
-            <div class="esp-scene" id="espScene"><div class="grid-floor"></div><div class="esp-board" id="espBoard"><div class="pcb"><span class="board-label">ESP32-WROOM-32</span><div class="usb"><i></i></div><div class="chip"><span>ESPRESSIF</span><b>ESP32</b></div><div class="antenna"></div><div class="led led-power"></div><div class="led led-user" id="userLed"></div><div class="pin-row left-pins" id="leftPins"></div><div class="pin-row right-pins" id="rightPins"></div><span class="board-mark">coda IoT LAB</span></div></div><div class="sensor-pulse" id="sensorPulse"></div><div class="scene-hint">Arraste para girar • use a roda para aproximar</div></div>
+            <div class="esp-scene" id="espScene"><canvas id="esp3DCanvas" aria-label="Modelo tridimensional interativo da placa ESP32"></canvas><div class="esp-3d-overlay"><span class="esp-3d-badge">ESP32 · MODELO DETALHADO</span><small>38 pinos · USB · antena · EN / BOOT</small></div><div class="reference-scene-tools"><button type="button" id="espSceneHome">Centralizar</button><button type="button" id="espSceneTop">Vista superior</button><button type="button" id="espSceneGrid" aria-pressed="true">Grade</button><button type="button" id="espSceneRotate" aria-pressed="false">Girar sozinho</button></div><div class="scene-hint">Arraste para girar · toque em EN / BOOT na placa</div></div>
             <aside class="esp-panel"><span class="panel-kicker">PROJETOS GUIADOS</span><div class="esp-projects" id="espProjects"></div><div class="wiring-card" id="wiringCard"></div><button class="primary full" id="openEspLab">Abrir código no laboratório →</button></aside>
             </div>
             <div class="pin-guide"><div><span class="pin-dot power"></span><strong>Energia</strong><small>3V3, VIN e GND</small></div><div><span class="pin-dot digital"></span><strong>Digital</strong><small>GPIO para entrada e saída</small></div><div><span class="pin-dot analog"></span><strong>Analógico</strong><small>ADC para sensores</small></div><div><span class="pin-dot active"></span><strong>Ativo</strong><small>Pino usado no projeto atual</small></div></div>
           </div>
           <section class="mobile-ar-panel" id="espMobileARPanel" hidden>
             <div class="mobile-ar-intro">
-              <div><span class="kicker">CÂMERA DO CELULAR • RA</span><h2>Coloque o ESP32 virtual na sua mesa</h2><p>No Android compatível, o CODA tenta usar WebXR e detectar a superfície real. Em outros celulares, ele abre a câmera e permite posicionar o ESP32 manualmente sobre a imagem.</p></div>
+              <div><span class="kicker">CODA • LABORATÓRIO RA</span><h2>Sua bancada de ESP32 com câmera</h2><p>Coloque a placa sobre a imagem da mesa, fixe sua posição, arraste componentes 3D, ligue fios e programe em Arduino/C++. <b>Modo câmera:</b> a fixação é na tela, não rastreamento físico da superfície. Para rastreamento real são necessários navegador e dispositivo com WebXR compatível.</p></div>
               <button type="button" class="primary" id="openMobileAR">📱 Abrir câmera em RA</button>
             </div>
             <div class="ar-status" id="mobileARStatus"><span>◎</span><div><strong>Pronto para abrir a câmera</strong><small>Toque em “RA no celular” ou no botão acima e permita o uso da câmera.</small></div></div>
-            <div class="mobile-ar-steps"><div><b>1</b><span><strong>Permita a câmera</strong><small>Use a câmera traseira.</small></span></div><div><b>2</b><span><strong>Aponte para a mesa</strong><small>No WebXR, mova o celular até a superfície ser encontrada.</small></span></div><div><b>3</b><span><strong>Toque para posicionar</strong><small>O ESP32 aparece naquele ponto.</small></span></div><div><b>4</b><span><strong>Ajuste</strong><small>No modo câmera, arraste, gire e altere o tamanho.</small></span></div></div>
+            <div class="mobile-ar-steps"><div><b>1</b><span><strong>Posicione</strong><small>Toque na imagem da mesa.</small></span></div><div><b>2</b><span><strong>Fixe a placa</strong><small>Use “Fixar posição” para impedir arrastar por engano.</small></span></div><div><b>3</b><span><strong>Monte</strong><small>Arraste componentes no modelo 3D e conecte os terminais.</small></span></div><div><b>4</b><span><strong>Programe</strong><small>Escreva e simule comandos Arduino/C++.</small></span></div></div>
           </section>
           <div class="mobile-ar-overlay" id="mobileAROverlay" hidden aria-hidden="true">
             <video id="mobileARVideo" autoplay muted playsinline></video>
-            <div class="mobile-ar-topbar"><div><strong>📱 CODA • ESP32 RA</strong><small id="mobileAROverlayHint">Toque na mesa para colocar o ESP32</small></div><button type="button" id="closeMobileAR" aria-label="Fechar realidade aumentada">✕</button></div>
+            <div class="mobile-ar-topbar"><div><strong>◈ CODA • Bancada RA</strong><small id="mobileAROverlayHint">Toque na imagem para posicionar a placa</small></div><button type="button" id="closeMobileAR" aria-label="Fechar realidade aumentada">✕</button></div>
             <div class="mobile-ar-stage" id="mobileARStage">
               <div class="mobile-ar-reticle" id="mobileARReticle"><i></i><span>TOQUE NA MESA</span></div>
-              <div class="mobile-ar-board" id="mobileARBoard" hidden>
-                <div class="mobile-ar-usb"></div><div class="mobile-ar-chip"><small>ESPRESSIF</small><b>ESP32</b></div><div class="mobile-ar-antenna"></div><div class="mobile-ar-led"></div><strong>ESP32-WROOM-32</strong><span>CODA IoT LAB</span><i class="mobile-pins left"></i><i class="mobile-pins right"></i>
+              <canvas id="mobileARCanvas" hidden aria-label="Modelo tridimensional do ESP32 na realidade aumentada"></canvas>
+            </div>
+            <div class="mobile-ar-led-status" id="mobileARLedStatus" aria-live="polite">💡 Monte o circuito e execute o código</div>
+            <div class="mobile-ar-workbench" id="mobileARWorkbench">
+              <div class="mobile-ar-quick-actions" aria-label="Ações rápidas da bancada">
+                <button type="button" id="mobileARLock" aria-pressed="false" disabled>♧ Fixar posição</button>
+                <button type="button" id="mobileARQuickAdd">＋ LED</button>
+                <button type="button" id="mobileARQuickRun">▶ Executar</button>
+              </div>
+              <div class="mobile-ar-tool-tabs" aria-label="Ferramentas de realidade aumentada">
+                <button type="button" class="active" data-mobile-ar-tool="view">◈ Bancada</button>
+                <button type="button" data-mobile-ar-tool="wires">⌁ Conexões</button>
+                <button type="button" data-mobile-ar-tool="code">&lt;/&gt; Código</button>
+              </div>
+              <div class="mobile-ar-view-help" id="mobileARViewHelp" role="status">Toque na imagem para posicionar a placa. Depois fixe e arraste os componentes diretamente no 3D.</div>
+              <div class="mobile-ar-drawer" id="mobileARWiresPanel" hidden>
+                <h3>Montar circuito em RA</h3>
+                <p>Toque em dois terminais para ligar um fio. Use <b>GPIO → resistor → LED (A) → LED (B) → GND</b>.</p>
+                <div class="mobile-ar-add-row"><button type="button" id="mobileARAddLED">＋ LED</button><button type="button" id="mobileARAddResistor">＋ Resistor 220 Ω</button><button type="button" id="mobileARAddPot">＋ Potenciômetro</button><button type="button" id="mobileARAddButton">＋ Botão</button><button type="button" id="mobileARExample">Exemplo pronto</button></div>
+                <strong class="ar-drawer-subhead">Pinos do ESP32</strong>
+                <p class="mobile-ar-wiring-guide">Escolha um pino da placa e depois um terminal do componente. Os pinos mais usados aparecem primeiro.</p>
+                <div class="mobile-ar-terminals" id="mobileARBoardTerminals"></div>
+                <button type="button" id="mobileARShowAllPins" class="mobile-ar-expand-pins" aria-expanded="false">Mostrar todos os pinos ▼</button>
+                <strong class="ar-drawer-subhead">Componentes e terminais</strong>
+                <div class="mobile-ar-parts" id="mobileARPartTerminals"></div>
+                <div class="mobile-ar-wiring-feedback" id="mobileARWiringStatus" role="status">Escolha o primeiro terminal.</div>
+                <div class="mobile-ar-wire-list" id="mobileARWireList"></div>
+                <div class="mobile-ar-add-row"><button type="button" id="mobileARUndoWire">Desfazer último fio</button><button type="button" id="mobileARClearCircuit">Limpar circuito</button></div>
+              </div>
+              <div class="mobile-ar-drawer" id="mobileARCodePanel" hidden>
+                <h3>Programar ESP32 virtual</h3>
+                <p>Edite um sketch Arduino básico. Use leituras analógicas, comandos digitais, variáveis, contas e Serial. O simulador interpreta um subconjunto de Arduino; não grava firmware físico.</p>
+                <div class="reference-mobile-hardware"><button type="button" id="mobileARResetEN">EN / Reset</button><button type="button" id="mobileARBoot">BOOT</button><label for="mobileARPot">ADC34</label><input type="range" id="mobileARPot" min="0" max="4095" value="2048"><span id="mobileARPotValue">2048 / 4095</span></div><label class="mobile-ar-code-label" for="mobileARCode">Código Arduino / ESP32</label>
+                <textarea id="mobileARCode" spellcheck="false" autocapitalize="off" autocomplete="off" rows="10" aria-label="Editor do sketch para ESP32 virtual"></textarea>
+                <div class="mobile-ar-add-row mobile-ar-editor-main"><button type="button" id="mobileARVerify">✓ Verificar</button><button type="button" id="mobileARPlay" class="mobile-ar-run">▶ Executar</button><button type="button" id="mobileARStop">■ Parar</button></div>
+                <div class="mobile-ar-add-row"><button type="button" id="mobileARSaveINO">↓ Salvar .ino</button><button type="button" id="mobileAROpenINO">↑ Abrir .ino</button><input type="file" id="mobileARINOFile" accept=".ino,.txt,text/plain" hidden><button type="button" id="mobileARRestoreExample">LED piscando</button><button type="button" id="mobileARAnalogExample">Potenciômetro + LED</button></div>
+                <div id="mobileARSerial" class="mobile-ar-serial" role="log" aria-label="Monitor serial na RA"></div><div id="mobileARProgramStatus" class="mobile-ar-wiring-feedback" role="status">Pronto para executar o código.</div>
               </div>
             </div>
-            <div class="mobile-ar-controls"><button type="button" id="mobileARSmaller">−</button><button type="button" id="mobileARRotateLeft">↶</button><button type="button" id="mobileARReset">Centralizar</button><button type="button" id="mobileARRotateRight">↷</button><button type="button" id="mobileARLarger">＋</button></div>
+            <div class="mobile-ar-controls" aria-label="Ajuste de posição e escala"><button type="button" id="mobileARSmaller" aria-label="Diminuir modelo">−</button><button type="button" id="mobileARRotateLeft" aria-label="Girar à esquerda">↶</button><button type="button" id="mobileARReset">Reposicionar</button><button type="button" id="mobileARRotateRight" aria-label="Girar à direita">↷</button><button type="button" id="mobileARLarger" aria-label="Ampliar modelo">＋</button></div>
           </div>
           <span id="espWiringAnchor" aria-hidden="true"></span>
           <section class="wiring-lab" id="espWiringPanel" hidden>
             <div class="wiring-lab-head"><div><span class="kicker">BANCADA DE CIRCUITOS</span><h2>Monte como no Tinkercad</h2><p>Arraste componentes para a bancada. Pressione um terminal e arraste até outro terminal para criar um fio; clique em um terminal para usar o modo passo a passo.</p></div><div class="wiring-actions"><button id="loadWiringExample">Carregar exemplo</button><button id="undoWire">Desfazer fio</button><button id="clearWires">Limpar</button><button class="primary" id="powerCircuit">▶ Testar circuito</button></div></div>
-            <div class="wiring-view-switch" role="tablist" aria-label="Visualização da bancada"><button type="button" class="active" data-wiring-view="2d">▦ Protoboard 2D</button><button type="button" data-wiring-view="3d">◇ Bancada 3D</button><span><b>Atalhos:</b> arrastar componente • arrastar terminal • Delete remove seleção</span></div>
+            <div class="wiring-view-switch" role="note" aria-label="Visualização da bancada"><strong>◇ Bancada 3D</strong><span><b>Atalhos:</b> arrastar componente • arrastar terminal • Delete remove seleção</span></div>
             <div class="wiring-selection" id="wiringSelection"><span>1</span><strong>Selecione o primeiro terminal</strong><small>O próximo clique completará o fio.</small></div>
             <div class="wiring-palette" id="wiringPalette" aria-label="Biblioteca de componentes"><strong>Biblioteca</strong><small>Arraste para a bancada</small><button type="button" draggable="true" data-add-component="resistor"><i class="palette-resistor"></i><span>Resistor</span><em>220 Ω</em></button><button type="button" draggable="true" data-add-component="led"><i class="palette-led"></i><span>LED</span><em>polarizado</em></button><button type="button" draggable="true" data-add-component="battery"><i class="palette-battery"></i><span>Bateria</span><em>3,3 V</em></button><button type="button" draggable="true" data-add-component="button"><i class="palette-button"></i><span>Chave</span><em>digital</em></button><button type="button" draggable="true" data-add-component="capacitor"><i class="palette-capacitor"></i><span>Capacitor</span><em>100 µF</em></button><button type="button" draggable="true" data-add-component="sensor"><i class="palette-sensor"></i><span>Sensor</span><em>ultrassônico</em></button></div>
-            <div class="wiring-board wiring-board-2d" id="wiringBoard" tabindex="0" aria-label="Bancada de montagem de circuitos">
+            <div class="wiring-board wiring-board-3d" id="wiringBoard" tabindex="0" aria-label="Bancada tridimensional de montagem de circuitos">
+              <canvas id="wiring3DCanvas" aria-label="Modelo 3D com fios funcionais do circuito ESP32"></canvas>
               <svg class="wire-layer" id="wireLayer" aria-hidden="true"></svg>
               <div class="breadboard-rails" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
               <div class="wiring-esp"><div class="mini-antenna"></div><div class="mini-chip">ESP32</div><strong>ESP32-WROOM-32</strong><div class="wiring-pin-bank" id="wiringPinBank"></div></div>
@@ -278,11 +321,16 @@
             <div class="hardware-warning"><b>Simulação educativa:</b> antes de montar fisicamente, desligue a alimentação, confira o datasheet dos componentes e lembre que os GPIOs do ESP32 trabalham em 3,3 V.</div>
           </section>
           <section class="three-d-programmer" id="espProgramPanel" hidden>
-            <div class="three-d-program-head"><div><span class="kicker">CODA CIRCUITS • ESP32</span><h2>Programador 3D · ESP32 Circuit Lab</h2><p>Monte, conecte e simule componentes em uma bancada 3D independente.</p></div><button class="primary" id="openGenerated3DCode">Abrir código no laboratório →</button></div>
-            <div class="prototype-toolbar"><div><span id="prototypeComponentCount">0 componentes • 0 fios</span><strong id="prototypeSimulationStatus">Simulação parada</strong></div><span class="prototype-wire-help">1. Adicione • 2. Conecte • 3. Teste</span><button type="button" id="loadPrototypeExampleToolbar">Montar exemplo correto</button><button type="button" id="play3DSimulation" disabled>▶ Testar circuito</button><button type="button" id="reset3DPrototype">Limpar projeto</button></div>
+            <div class="three-d-program-head"><div><span class="kicker">CODA CIRCUITS • ESP32</span><h2>Programador 3D</h2><p>Monte o circuito, escreva o programa e execute. A bancada só reage quando o seu código estiver rodando.</p></div><button id="openGenerated3DCode" hidden>Usar no laboratório</button></div>
+            <div class="programmer-flow" aria-label="Etapas do Programador 3D"><span><b>1</b> Programe em Arduino/C++</span><span><b>2</b> Execute no ESP32 virtual</span><span><b>3</b> Monte e teste no 3D</span></div>
+            <div class="programmer-code-entry" id="programmerCodeTop">
+              <div><span class="programmer-entry-icon" aria-hidden="true">&lt;/&gt;</span><div><strong>Escreva o código do seu ESP32</strong><p>Use <code>setup()</code> e <code>loop()</code>, como na Arduino IDE. Execute aqui mesmo e observe o resultado na bancada 3D.</p></div></div>
+              <button type="button" id="programmerSeeBench">Ver bancada 3D ↓</button>
+            </div>
+            <div class="prototype-toolbar"><div><span id="prototypeComponentCount">0 componentes • 0 fios</span><strong id="prototypeSimulationStatus">Aguardando montagem</strong></div><button type="button" id="loadPrototypeExampleToolbar">Carregar circuito de exemplo</button><button type="button" id="reset3DPrototype">Limpar</button><button type="button" id="play3DSimulation" hidden disabled>Testar circuito</button></div>
             <div class="three-d-builder">
-              <aside class="programmer-library"><div class="library-heading"><span class="kicker">BIBLIOTECA DE COMPONENTES</span><strong>Adicione à bancada</strong><small>Componentes para seu circuito</small></div><div class="component-palette" id="componentPalette"><div class="palette-group"><span class="palette-group-title">Básicos</span><button type="button" data-component-type="led">● <span>LED</span><small>GPIO2 • polarizado</small></button><button type="button" data-component-type="resistor">▰ <span>Resistor</span><small>220 Ω • proteção</small></button><button type="button" data-component-type="battery">▣ <span>Bateria</span><small>3,3 V • alimentação</small></button><button type="button" data-component-type="button">▣ <span>Botão</span><small>GPIO4 • entrada</small></button></div><div class="palette-group"><span class="palette-group-title">Sensores</span><button type="button" data-component-type="sensor">⌁ <span>Sensor</span><small>GPIO35 • ADC</small></button><button type="button" data-component-type="temperature">℃ <span>Temperatura</span><small>GPIO35 • ADC</small></button></div><div class="palette-group"><span class="palette-group-title">Atuadores e comunicação</span><button type="button" data-component-type="rgb">◉ <span>LED RGB</span><small>PWM</small></button><button type="button" data-component-type="servo">↻ <span>Servo</span><small>PWM</small></button><button type="button" data-component-type="motor">⚙ <span>Motor</span><small>PWM</small></button><button type="button" data-component-type="display">▤ <span>Display</span><small>I2C</small></button><button type="button" data-component-type="relay">▰ <span>Relé</span><small>GPIO23</small></button><button type="button" data-component-type="buzzer">◖ <span>Buzzer</span><small>GPIO25</small></button></div></div><div class="library-hint">Clique em um terminal e depois em outro para criar fios coloridos.</div></aside>
-              <div class="prototype-stage" id="prototypeStage" tabindex="0" aria-label="Bancada 3D do ESP32 Circuit Lab"><svg class="prototype-wire-layer" id="prototypeWireLayer" aria-hidden="true"></svg><div class="prototype-board-label">ESP32 CIRCUIT LAB <small>ambiente de prototipagem</small></div><div class="prototype-esp"><div class="prototype-board"><i class="prototype-usb-port"></i><i class="prototype-main-chip">ESP32</i><i class="prototype-esp-led" id="prototypeEspLed"></i><strong>ESP32-WROOM-32</strong></div><div class="prototype-pin-bank-left"></div><div class="prototype-pin-bank-right"></div></div><div id="prototypeIoBank"></div><div id="prototypeComponents"></div><div id="prototypeEmpty"><div class="prototype-empty-card"><span class="prototype-empty-icon">⌁</span><strong>Monte seu primeiro circuito</strong><small>Comece pelo exemplo guiado ou adicione um LED e um resistor na biblioteca.</small><div class="prototype-empty-steps"><span><b>1</b> Adicione</span><span><b>2</b> Conecte</span><span><b>3</b> Teste</span></div><button type="button" class="primary" id="loadPrototypeExample">Montar exemplo: LED + resistor</button></div></div><div id="prototypeOutput" aria-live="polite"><b>Pronto para começar</b><span>Adicione componentes ou carregue o exemplo guiado.</span></div></div>
+              <aside class="programmer-library"><div class="library-heading"><span class="kicker">PEÇAS</span><strong>Adicionar à bancada</strong><small>As peças mais usadas ficam à vista.</small></div><div class="component-palette" id="componentPalette"><div class="palette-group"><button type="button" data-component-type="led">● <span>LED</span><small>GPIO2</small></button><button type="button" data-component-type="resistor">▰ <span>Resistor</span><small>220 Ω</small></button><button type="button" data-component-type="button">▣ <span>Botão</span><small>GPIO4</small></button><button type="button" data-component-type="potentiometer">◴ <span>Potenciômetro</span><small>GPIO34</small></button></div><details class="advanced-components"><summary>Mais componentes</summary><div class="palette-group"><button type="button" data-component-type="battery">▣ <span>Bateria</span><small>3,3 V</small></button><button type="button" data-component-type="sensor">⌁ <span>Sensor</span><small>GPIO35</small></button><button type="button" data-component-type="temperature">℃ <span>Temperatura</span><small>GPIO35</small></button><button type="button" data-component-type="rgb">◉ <span>LED RGB</span><small>PWM</small></button><button type="button" data-component-type="servo">↻ <span>Servo</span><small>PWM</small></button><button type="button" data-component-type="motor">⚙ <span>Motor</span><small>PWM</small></button><button type="button" data-component-type="display">▤ <span>Display</span><small>I2C</small></button><button type="button" data-component-type="relay">▰ <span>Relé</span><small>GPIO23</small></button><button type="button" data-component-type="buzzer">◖ <span>Buzzer</span><small>GPIO25</small></button></div></details></div><div class="library-hint">Para ligar um fio, selecione um terminal e depois o terminal de destino.</div></aside>
+              <div class="prototype-stage" id="prototypeStage" tabindex="0" aria-label="Bancada 3D do ESP32 Circuit Lab"><canvas id="circuit3DCanvas" aria-label="Modelo 3D funcional do ESP32 Circuit Lab"></canvas><svg class="prototype-wire-layer" id="prototypeWireLayer" aria-hidden="true"></svg><div class="prototype-board-label">ESP32 CIRCUIT LAB <small>ambiente de prototipagem</small></div><div class="prototype-esp"><div class="prototype-board"><i class="prototype-usb-port"></i><i class="prototype-main-chip">ESP32</i><i class="prototype-esp-led" id="prototypeEspLed"></i><strong>ESP32-WROOM-32</strong></div><div class="prototype-pin-bank-left"></div><div class="prototype-pin-bank-right"></div></div><div id="prototypeIoBank"></div><div id="prototypeComponents"></div><div id="prototypeEmpty"><div class="prototype-empty-card"><span class="prototype-empty-icon">⌁</span><strong>Monte seu primeiro circuito</strong><small>Comece pelo exemplo guiado ou adicione um LED e um resistor na biblioteca.</small><div class="prototype-empty-steps"><span><b>1</b> Adicione</span><span><b>2</b> Conecte</span><span><b>3</b> Teste</span></div><button type="button" class="primary" id="loadPrototypeExample">Montar exemplo: LED + resistor</button></div></div><div id="prototypeOutput" aria-live="polite"><b>Pronto para começar</b><span>Adicione componentes ou carregue o exemplo guiado.</span></div></div>
               <aside class="component-inspector" id="componentInspector"><span class="kicker">GUIA DA BANCADA</span><h3>Como montar</h3><p class="inspector-tip">Clique em um componente para selecionar. Clique em dois terminais para criar um fio ou arraste de um terminal ao outro.</p><ol class="inspector-steps"><li><b>Adicione</b><span>Escolha um componente na biblioteca.</span></li><li><b>Posicione</b><span>Arraste o componente para a bancada.</span></li><li><b>Conecte</b><span>Use os terminais coloridos nas extremidades.</span></li><li><b>Teste</b><span>Execute somente depois de fechar o circuito.</span></li></ol><div class="gpio-legend"><strong>GPIOs principais</strong><span><i class="gpio-power"></i>3V3 / GND = alimentação</span><span><i class="gpio-signal"></i>GPIO = sinal digital</span><span><i class="gpio-analog"></i>GPIO34/35 = entrada ADC</span></div></aside>
             </div>
             <div class="teacher-3d-templates" id="threeDTemplates"></div><button type="button" id="prototypeViewToggle" hidden>Vista superior</button>
@@ -291,18 +339,52 @@
           <section class="ar-lab" id="espARPanel" hidden>
             <div class="ar-hero">
               <article class="ar-card">
-                <span class="kicker">WEBXR • MIXED REALITY</span><h2>ESP32 na sua bancada real</h2><p>Use um óculos compatível com WebXR. O CODA usa passthrough do próprio dispositivo para posicionar o ESP32 virtual sobre uma superfície real.</p>
+                <span class="kicker">WEBXR • VR E REALIDADE AUMENTADA</span><h2>Laboratório ESP32 no seu óculos</h2><p>Escolha um ambiente virtual imersivo, sem enxergar o mundo externo, ou use o passthrough para colocar a placa sobre uma bancada real.</p>
+                <div class="xr-experience-picker" role="radiogroup" aria-label="Tipo de experiência no óculos">
+                  <button type="button" class="active" data-xr-experience="vr" role="radio" aria-checked="true"><span>🌐</span><div><strong>Ambiente virtual</strong><small>Laboratório fechado e imersivo</small></div></button>
+                  <button type="button" data-xr-experience="ar" role="radio" aria-checked="false"><span>◉</span><div><strong>Bancada real</strong><small>Passthrough e realidade aumentada</small></div></button>
+                </div>
                 <div class="ar-mode-picker">
                   <button type="button" class="active" data-ar-mode="view"><span>👓</span><div><strong>Somente visualizar</strong><small>Posicione, observe e caminhe ao redor da placa</small></div></button>
                   <button type="button" data-ar-mode="lab"><span>🥽</span><div><strong>Laboratório interativo</strong><small>Selecione e mova ESP32, LED e resistor</small></div></button>
                 </div>
-                <div class="ar-actions"><button type="button" id="checkAR" hidden>Verificar meu dispositivo</button><button type="button" class="primary" id="enterAR" hidden>Entrar em realidade aumentada</button><button type="button" id="exitAR" disabled>Encerrar RA</button></div>
-                <div class="ar-status" id="arStatus"><span>◎</span><div><strong>Entrada automática</strong><small>Ao tocar em 🥽 Realidade aumentada, o CODA tenta abrir o modo RA imediatamente.</small></div></div>
+                <div class="ar-actions"><button type="button" id="checkAR">Verificar meu óculos</button><button type="button" class="primary" id="enterAR">Entrar no ambiente</button><button type="button" id="exitAR" disabled>Encerrar experiência</button></div>
+                <div class="ar-status" id="arStatus"><span>◎</span><div><strong>Pronto para verificar</strong><small>Selecione VR ou RA e confirme o suporte do navegador do óculos.</small></div></div>
               </article>
-              <aside class="ar-guide"><span class="kicker">COMO USAR</span><h3>Dentro do óculos</h3><ol><li><b>Toque em 🥽 Realidade aumentada.</b> A RA abre automaticamente; autorize o passthrough se o óculos solicitar.</li><li><b>Olhe para a bancada.</b> O sistema procura uma superfície.</li><li><b>Faça uma pinça ou pressione o gatilho.</b> O ESP32 é colocado naquele ponto.</li><li><b>No modo visualização</b>, outra seleção reposiciona a placa.</li><li><b>No laboratório</b>, aponte e selecione uma peça; depois selecione outro ponto da mesa para movê-la.</li></ol></aside>
+              <aside class="ar-guide"><span class="kicker">COMO USAR</span><h3>Dentro do óculos</h3><ol><li><b>Escolha Ambiente virtual ou Bancada real.</b></li><li><b>Entre no ambiente</b> e autorize o WebXR quando solicitado.</li><li><b>Use as mãos ou controles.</b> Aponte e faça uma pinça/gatilho para selecionar.</li><li><b>No VR</b>, o ESP32 aparece sobre uma mesa virtual completa.</li><li><b>Na RA</b>, olhe para uma superfície e selecione o ponto onde a placa deve ficar.</li></ol></aside>
             </div>
-            <div class="ar-tools" id="arLabTools" hidden><div class="ar-tool-row"><strong>Peças virtuais</strong><button type="button" id="arAddLed">＋ LED</button><button type="button" id="arAddResistor">＋ Resistor</button><button type="button" id="arClearComponents">Limpar peças</button></div><div class="ar-component-list" id="arComponentList"></div><div class="ar-tool-row"><strong>Ajuste do ESP32</strong><button type="button" id="arRotateLeft">↶ Girar</button><button type="button" id="arRotateRight">↷ Girar</button><button type="button" id="arScaleDown">− Menor</button><button type="button" id="arScaleUp">＋ Maior</button><span id="arSelectedLabel">Nenhum objeto selecionado</span></div></div>
-            <div class="ar-note"><b>Importante:</b> a experiência RA precisa ser aberta por HTTPS e depende do suporte WebXR do óculos/navegador. No PC comum, o CODA mantém os modos 3D, fios e programador normalmente.</div>
+            <div class="ar-tools" id="arLabTools" hidden><div class="ar-tool-row"><strong>Peças virtuais</strong><button type="button" id="arImportCircuit">Usar circuito do Programador 3D</button><button type="button" id="arAddLed">＋ LED</button><button type="button" id="arAddResistor">＋ Resistor</button><button type="button" id="arClearComponents">Limpar peças</button></div><div class="ar-component-list" id="arComponentList"></div><div class="ar-tool-row"><strong>Ajuste do ESP32</strong><button type="button" id="arRotateLeft">↶ Girar</button><button type="button" id="arRotateRight">↷ Girar</button><button type="button" id="arScaleDown">− Menor</button><button type="button" id="arScaleUp">＋ Maior</button><span id="arSelectedLabel">Nenhum objeto selecionado</span></div></div>
+            <div class="ar-note"><b>Importante:</b> VR/RA precisa de HTTPS e de um navegador WebXR compatível. No Meta Quest 3, abra o link pelo navegador do próprio óculos. No PC comum, os modos 3D, fios e programador continuam disponíveis.</div>
+          </section>
+          <section class="esp-firmware-panel" id="espFirmwarePanel" aria-label="Editor Arduino do Programador 3D">
+            <header class="firmware-heading"><div><span class="kicker">EDITOR DE CÓDIGO • ARDUINO IDE</span><h2>Programar ESP32 com código</h2><p id="espFirmwareDescription">O simulador interpreta o sketch e atualiza a placa e os componentes conectados.</p></div><span class="firmware-scope" id="espFirmwareScope">Programador 3D</span></header>
+            <div class="firmware-columns">
+              <div class="firmware-editor arduino-ide-editor">
+                <div class="firmware-toolbar"><label for="espFirmwareCode"><span id="espFirmwareFilename">sketch.ino</span> <small id="espFirmwareLanguage">Arduino / C++ educativo</small></label><select id="espCodeExample" aria-label="Carregar exemplo de código"><option value="">Exemplos de código…</option><option value="blink">LED piscando</option><option value="adc">Potenciômetro + LED</option><option value="boot">Botão BOOT + LED</option></select></div>
+                <div class="arduino-ide-tools" aria-label="Ferramentas do editor">
+                  <button type="button" id="espVerifyCode" title="Verificar código Arduino">✓ Verificar</button>
+                  <button type="button" id="espSaveIno" title="Baixar código como sketch.ino">↓ Salvar .ino</button>
+                  <button type="button" id="espOpenIno" title="Abrir arquivo de código">↑ Abrir .ino</button>
+                  <input type="file" id="espOpenInoFile" accept=".ino,.cpp,.txt,text/plain" hidden aria-label="Selecionar arquivo Arduino">
+                  <button type="button" id="espCopyCode" title="Copiar código">Copiar</button>
+                  <button type="button" id="espRestoreCode" title="Carregar código de exemplo inicial">Restaurar exemplo</button>
+                </div>
+                <div class="arduino-code-area"><div class="arduino-code-lines" id="espCodeLines" aria-hidden="true">1</div><textarea id="espFirmwareCode" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Digite seu código Arduino para o ESP32 3D" aria-describedby="espEditorShortcuts" wrap="off"></textarea></div>
+                <div class="arduino-code-meta"><span id="espEditorCaret">LIN 1, COL 1</span><span id="espEditorSaved">Salvo automaticamente no navegador</span></div>
+                <div class="firmware-actions"><label class="execution-target" for="espExecutionTarget">Executar em<select id="espExecutionTarget"><option value="simulator">ESP32 virtual 3D</option><option value="physical">ESP32 físico USB (MicroPython)</option></select></label><button type="button" class="primary" id="espRunCode">▶ Executar no 3D</button><button type="button" id="espStopCode" disabled>■ Parar</button></div>
+                <p class="arduino-ide-shortcuts" id="espEditorShortcuts">Ctrl + Enter: executar · Tab: indentar · Ctrl + S: salvar arquivo .ino. O simulador interpreta comandos Arduino compatíveis, não compila firmware completo.</p>
+              </div>
+              <div class="firmware-monitor"><div class="firmware-toolbar"><strong>Monitor serial <small id="espSerialCount">0 linhas</small></strong><button type="button" id="espClearSerial">Limpar</button></div><div class="firmware-serial" id="espSerialOutput" role="log" aria-label="Saída serial do ESP32"></div><div class="firmware-plot"><div><strong>Leitura analógica</strong><span>0 — 4095</span></div><svg id="espADCPlot" viewBox="0 0 100 42" preserveAspectRatio="none" role="img" aria-label="Gráfico da leitura analógica"><path d="M0 4H100 M0 21H100 M0 38H100" stroke="#243c49" stroke-width=".3"/><polyline id="espADCLine" fill="none" stroke="#e9b96a" stroke-width=".75" vector-effect="non-scaling-stroke"/></svg></div></div>
+            </div>
+            <details class="esp-optional-generator"><summary>Opcional: gerar um exemplo a partir de uma descrição</summary>
+            <form class="esp-program-prompt" id="espProgramPromptForm">
+              <div><span class="kicker">PROGRAMAR COM UM PEDIDO</span><h3>Diga o que o ESP32 deve fazer</h3><p>Exemplo: “Piscar o LED do GPIO2 a cada 1 segundo e mostrar o estado no monitor serial”.</p></div>
+              <label for="espProgramPrompt">Seu pedido<textarea id="espProgramPrompt" rows="3" maxlength="500" placeholder="Escreva aqui como o modelo 3D deve funcionar..." required></textarea></label>
+              <button type="submit" class="primary" id="espGenerateFromPrompt">Gerar código</button>
+              <p id="espProgramPromptStatus" role="status">O código será colocado no editor abaixo para você revisar e executar.</p>
+            </form>
+            </details>
+            <p id="espFirmwareStatus" class="firmware-status" role="status"></p><details class="firmware-help"><summary>Ajuda e compatibilidade</summary><p id="espFirmwareHelp">Use <code>pinMode</code>, <code>digitalWrite</code>, <code>digitalRead</code>, <code>analogRead</code>, <code>delay</code>, <code>millis</code>, variáveis, contas e <code>Serial.begin / print / println / printf</code>. Para um LED externo, conecte GPIO → resistor → LED → GND.</p></details>
           </section>
         </section>
 
@@ -442,8 +524,8 @@
   <script src="admin.js?v=10.5.0.3"></script>
   <script src="js/social-network-v3.js?v=10.9.1"></script>
   <script src="lesson-content.js?v=10.5.0"></script>
-  <script src="script.js?v=10.9.5"></script>
+  <script src="script.js?v=14.5.0"></script>
   <script src="js/redesign.js?v=11.2.0"></script>
-  <script src="js/lesson-tabs.js?v=11.3.0"></script>
+  <script src="js/lesson-tabs.js?v=14.5.0"></script>
 </body>
 </html>
