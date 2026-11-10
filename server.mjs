@@ -38,7 +38,7 @@ const userPasswordMinimum = 6;
 const maxBodyBytes = 3_500_000;
 const loginAttempts = new Map();
 const eventClients = new Set();
-const publicFiles = new Set(["index.html", "style.css", "public-api.js", "platform.js", "admin.js", "lesson-content.js", "script.js", "dados.json", "banco.json", "manifest.json", "sw.js"]);
+const publicFiles = new Set(["index.html", "vr-preview.html", "style.css", "public-api.js", "platform.js", "admin.js", "lesson-content.js", "script.js", "dados.json", "banco.json", "manifest.json", "sw.js"]);
 const publicDirectories = ["styles/", "themes/", "components/", "pages/", "js/"];
 
 const mimeTypes = {

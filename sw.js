@@ -3,6 +3,7 @@
 const CACHE_NAME = "coda-estudos-v14-6-vr-hands-editor";
 const CORE_FILES = [
   "./index.html",
+  "./vr-preview.html",
   "./style.css?v=14.6.0",
   "./public-api.js?v=10.5.0",
   "./platform.js?v=10.2.1",

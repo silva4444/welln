@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#07131a">
+  <title>CODA 14.6 | Prévia do Laboratório VR</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="style.css?v=14.6.0">
+  <style>
+    body{min-width:320px;margin:0;background:#050e13;color:#edf8f2;font-family:Manrope,Arial,sans-serif}.vr-preview-page{max-width:1500px;margin:auto;padding:24px}.vr-preview-page-head{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:18px}.vr-preview-page-head div{display:flex;align-items:center;gap:13px}.vr-preview-page-head i{display:grid;place-items:center;width:48px;height:48px;border-radius:14px;background:#b9ff3b;color:#10190b;font-style:normal;font-size:24px;font-weight:900}.vr-preview-page-head strong,.vr-preview-page-head small{display:block}.vr-preview-page-head small{margin-top:3px;color:#8ba3ad}.vr-preview-page-head a{padding:10px 14px;border:1px solid #b9ff3b66;border-radius:9px;color:#dfffaa;text-decoration:none;font-weight:800}.vr-preview-card{display:block}.vr-preview-stage{min-height:650px}@media(max-width:700px){.vr-preview-page{padding:10px}.vr-preview-page-head{align-items:flex-start}.vr-preview-page-head a{font-size:11px}.vr-preview-stage{min-height:690px}}
+  </style>
+</head>
+<body>
+  <main class="vr-preview-page">
+    <header class="vr-preview-page-head"><div><i>C</i><span><strong>CODA EDUCACIONAL 14.6</strong><small>Laboratório ESP32 para Meta Quest 3</small></span></div><a href="/">ABRIR CODA</a></header>
+    <section class="vr-preview-card" aria-labelledby="vrPreviewTitle">
+      <header><div><span class="kicker">AMBIENTE DO ÓCULOS VR</span><h3 id="vrPreviewTitle">Programação e manipulação com as próprias mãos</h3><p>Dentro do Quest 3, a pinça segura e move o ESP32 e os componentes. O painel Arduino, o teclado, o monitor serial e a simulação ficam no próprio ambiente virtual.</p></div><div class="vr-capability-badges"><span>✋ HAND TRACKING</span><span>⌨ EDITOR VR</span><span>▶ SIMULAÇÃO</span></div></header>
+      <div class="vr-preview-stage" id="vrPreviewStage" role="img" aria-label="Laboratório VR com painel de código, teclado virtual, mãos e ESP32">
+        <div class="vr-preview-glow"></div><div class="vr-preview-grid"></div>
+        <div class="vr-preview-code"><div class="vr-window-head"><span>sketch.ino • EDITOR NO VR</span><b>● EXECUTANDO</b></div><pre><em>1</em> void setup() {
+<em>2</em>   pinMode(2, OUTPUT);
+<em>3</em>   Serial.begin(115200);
+<em>4</em> }
+<em>5</em> void loop() {
+<em>6</em>   digitalWrite(2, HIGH);
+<em>7</em>   delay(500);
+<em>8</em>   digitalWrite(2, LOW);
+<em>9</em>   delay(500);
+<em>10</em> }</pre><div class="vr-preview-actions"><span>BLINK</span><span>HIGH</span><span>LOW</span><span>+ LED</span><strong>▶ RUN</strong><span>■ STOP</span></div></div>
+        <div class="vr-preview-keyboard"><div>Q W E R T Y U I O P</div><div>A S D F G H J K L</div><div>Z X C V B N M ( ) ;</div><div>1 2 3 4 5 6 7 8 9 0</div><div><b>SPACE</b> <b>ENTER</b> <b>⌫</b></div></div>
+        <div class="vr-preview-table"><div class="vr-preview-board"><i></i><strong>ESP32</strong><small>WROOM-32</small><span></span></div><div class="vr-preview-led"></div><div class="vr-preview-resistor"></div><svg viewBox="0 0 600 180" preserveAspectRatio="none" aria-hidden="true"><path d="M290 80 C365 32 405 96 472 63"/><path d="M286 108 C348 162 410 113 505 130"/></svg></div>
+        <div class="vr-hand vr-hand-left"><i></i><b></b><span></span></div><div class="vr-hand vr-hand-right"><i></i><b></b><span></span></div>
+        <div class="vr-preview-hud"><span>SEGURE A PINÇA: AGARRAR</span><span>SOLTE A PINÇA: POSICIONAR</span><span>PAINEL: PROGRAMAR NO VR</span></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
