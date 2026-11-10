@@ -22,6 +22,38 @@ test("VR cria sala, mesa e aceita hand tracking",()=>{
   assert.match(xr,/state\.placed=true/);
 });
 
+test("VR preserva modelo, cor, orientação e escala das peças da bancada PC",()=>{
+  assert.match(xr,/model\.createPart\(\{\.\.\.item,type:item\.kind\|\|item\.type\}\)/);
+  assert.match(xr,/part\.rotation\.y=-Number\(item\.rotation\|\|0\)\*Math\.PI\/180/);
+  assert.match(xr,/part\.scale\.setScalar\(\.03\*Math\.max\(\.5,Math\.min\(1\.8,Number\(item\.scale\|\|1\)\)\)\)/);
+});
+
+test("VR oferece rotação, ligação entre terminais e fios visíveis",()=>{
+  assert.match(xr,/\"rotate:left\"/);
+  assert.match(xr,/\"rotate:right\"/);
+  assert.match(xr,/function pickWireTerminal\(ray,tip\)/);
+  assert.match(xr,/function connectTerminal\(endpoint\)/);
+  assert.match(xr,/new T\.TubeGeometry\(curve,18,\.0028,6,false\)/);
+  assert.match(xr,/\"wire:toggle\"/);
+});
+
+test("VR permite trazer mesa e painéis até o usuário e mover os painéis",()=>{
+  assert.match(xr,/function bringTableNear\(frame\)/);
+  assert.match(xr,/function bringPanelsNear\(frame\)/);
+  assert.match(xr,/grab\.kind===\"panel\"/);
+  assert.match(xr,/\"bring:table\"/);
+  assert.match(xr,/\"bring:keyboard\"/);
+  assert.equal((xr.match(/^\s*buildVREditor\(scene\);$/gm)||[]).length,1);
+});
+
+test("teclado VR envia teclas, espaço, nova linha e apagar para o editor",()=>{
+  assert.match(xr,/else if\(action===\"space\"\)state\.vrCode\+=\" \"/);
+  assert.match(xr,/else if\(action===\"enter\"\)state\.vrCode\+=\"\\n\"/);
+  assert.match(xr,/else if\(action===\"backspace\"\)state\.vrCode=state\.vrCode\.slice\(0,-1\)/);
+  assert.match(xr,/else if\(action\.startsWith\(\"key:\"\)\)state\.vrCode\+=action\.slice\(4\)/);
+  assert.match(xr,/action===\"run\"/);
+});
+
 test("mãos agarram e movem ESP32 continuamente até soltar a pinça",()=>{
   assert.match(xr,/session\.addEventListener\("selectstart",onSelectStart\)/);
   assert.match(xr,/session\.addEventListener\("selectend",onSelectEnd\)/);
