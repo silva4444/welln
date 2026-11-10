@@ -210,8 +210,16 @@ void loop() {
     const live=new Set(state.components.map(item=>item.id));
     for(const [id,part] of state.xrParts){if(!live.has(id)){state.xrScene.remove(part);model.dispose(part);state.xrParts.delete(id);}}
     for(const item of state.components){
-      let part=state.xrParts.get(item.id);if(!part){part=model.createPart({id:item.id,type:item.kind,color:'#ff5b67'});state.xrScene.add(part);state.xrParts.set(item.id,part);}
-      part.visible=state.placed;part.position.set(item.x,item.y+.008,item.z);part.scale.setScalar(.03);part.userData.setActive(Boolean(state.hardware?.outputs?.[2])&&item.connected);
+      let part=state.xrParts.get(item.id);if(!part){
+        // Reutiliza a mesma peça e os mesmos dados visuais da bancada do PC.
+        part=model.createPart({...item,type:item.kind||item.type});
+        state.xrScene.add(part);state.xrParts.set(item.id,part);
+      }
+      part.visible=state.placed;
+      part.position.set(item.x,item.y+.008,item.z);
+      part.rotation.y=-Number(item.rotation||0)*Math.PI/180;
+      part.scale.setScalar(.03*Math.max(.5,Math.min(1.8,Number(item.scale||1))));
+      part.userData.setActive(Boolean(state.hardware?.outputs?.[2])&&item.connected);
     }
     const reticle=state.xrReticle;reticle.visible=state.experience==="ar"&&Boolean(state.lastHit);if(state.lastHit)reticle.position.set(state.lastHit[12],state.lastHit[13]+.001,state.lastHit[14]);
     if(state.xrCircuit){
