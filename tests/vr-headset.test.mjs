@@ -25,7 +25,7 @@ test("VR cria sala, mesa e aceita hand tracking",()=>{
 test("VR preserva modelo, cor, orientação e escala das peças da bancada PC",()=>{
   assert.match(xr,/model\.createPart\(\{\.\.\.item,type:item\.kind\|\|item\.type\}\)/);
   assert.match(xr,/part\.rotation\.y=-Number\(item\.rotation\|\|0\)\*Math\.PI\/180/);
-  assert.match(xr,/part\.scale\.setScalar\(\.03\*Math\.max\(\.5,Math\.min\(1\.8,Number\(item\.scale\|\|1\)\)\)\)/);
+  assert.match(xr,/part\.scale\.setScalar\(\.065\*Math\.max\(\.5,Math\.min\(1\.8,Number\(item\.scale\|\|1\)\)\)\)/);
 });
 
 test("VR oferece rotação, ligação entre terminais e fios visíveis",()=>{
@@ -73,7 +73,7 @@ test("mãos agarram e movem ESP32 continuamente até soltar a pinça",()=>{
   assert.match(xr,/session\.addEventListener\("selectend",onSelectEnd\)/);
   assert.match(xr,/function updateGrabbed\(frame\)/);
   assert.match(xr,/index-finger-tip/);
-  assert.match(xr,/state\.grabbed=\{source,object,distance:grabDistance\}/);
+  assert.match(xr,/state\.grabbed=\{source,object,distance:grabDistance,offset:/);
   assert.match(xr,/object\.y=\.78/);
 });
 
@@ -83,7 +83,7 @@ test("VR inclui editor Arduino, teclado virtual e execução sem tela externa",(
   assert.match(xr,/CODA_VR_KEYBOARD/);
   assert.match(xr,/coda-vr-sketch-v146/);
   assert.match(xr,/core\.createRuntime/);
-  assert.match(xr,/runtime\.start\(state\.vrCode\|\|VR_DEMO\)/);
+  assert.match(xr,/runtime\.start\(state\.vrCode\)/);
   assert.match(xr,/activateVRAction/);
   assert.match(xr,/function buttonAtFinger\(tip\)/);
   assert.match(xr,/function updateHandTouches\(frame\)/);
