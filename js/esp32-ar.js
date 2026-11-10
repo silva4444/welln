@@ -126,7 +126,8 @@ void loop() {
     vrButton(keyboard,"SPACE","space",-.35,-.275,.28,.075,"#173642");vrButton(keyboard,"ENTER","enter",-.03,-.275,.24,.075,"#173642");vrButton(keyboard,"⌫", "backspace",.22,-.275,.16,.075,"#43303a");vrButton(keyboard,"▶ RUN", "run",.42,-.275,.18,.075,"#416b19");
     const pinPanel=new T.Group();pinPanel.name="CODA_VR_PIN_PICKER";pinPanel.position.set(.72,1.42,-.92);pinPanel.rotation.y=-.12;pinPanel.visible=false;scene.add(pinPanel);
     const pinBack=new T.Mesh(new T.BoxGeometry(1.28,1.12,.035),new T.MeshStandardMaterial({color:0x071218,roughness:.72,metalness:.12}));pinPanel.add(pinBack);
-    const pinHeader=new T.Mesh(new T.PlaneGeometry(1.20,.15),labelMaterial("ESCOLHA UM PINO DO ESP32",{width:900,height:120,bg:"#10242d",accent:"#b9ff3b",font:42}));pinHeader.position.set(0,.46,.022);pinPanel.add(pinHeader);
+    const pinHeader=new T.Mesh(new T.PlaneGeometry(.94,.15),labelMaterial("PINOS DO ESP32",{width:900,height:120,bg:"#10242d",accent:"#b9ff3b",font:54}));pinHeader.position.set(-.13,.46,.022);pinPanel.add(pinHeader);
+    vrButton(pinPanel,"FECHAR","pin:close",.49,.46,.20,.065,"#56363a",state.xrPinButtons);
     const pinNames=[...window.CodaESPModel.left,...window.CodaESPModel.right];
     pinNames.forEach((name,index)=>{const col=index%4,row=Math.floor(index/4),x=-.445+col*.30,y=.32-row*.085,reserved=window.CodaESPModel.reserved.has(name),label=reserved?`${window.CodaESPModel.label(name)} · FLASH`:window.CodaESPModel.label(name),button=vrButton(pinPanel,label,reserved?"pin:locked":`pin:select:${name}`,x,y,.27,.067,reserved?"#313840":"#17313d",state.xrPinButtons);button.userData.xrDisabled=reserved;});
     state.vrEditorRoot=root;state.vrKeyboardRoot=keyboard;state.vrPinPanel=pinPanel;refreshVRScreen();
@@ -135,15 +136,16 @@ void loop() {
   function refreshVRScreen(){
     const view=state.vrScreen;if(!view)return;const {ctx,canvas,texture}=view;
     ctx.fillStyle="#061117";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#10242d";ctx.fillRect(0,0,canvas.width,76);
-    ctx.fillStyle="#e6f4f8";ctx.font="700 34px DM Mono,monospace";ctx.fillText("sketch.ino • EDITOR DENTRO DO VR",32,49);
-    ctx.fillStyle=state.vrRunning?"#b9ff3b":"#84a2ad";ctx.textAlign="right";ctx.fillText(state.vrEditorMessage.slice(0,42),canvas.width-30,49);ctx.textAlign="left";
-    const lines=state.vrCode.split("\n"),visible=lines.slice(-13);ctx.font="25px DM Mono,monospace";
-    visible.forEach((line,index)=>{const y=112+index*34;ctx.fillStyle="#54717c";ctx.fillText(String(lines.length-visible.length+index+1).padStart(2," "),22,y);ctx.fillStyle=/(void|pinMode|digitalWrite|delay|Serial)/.test(line)?"#8ee4ff":"#e8f2f5";ctx.fillText(line.slice(0,65),72,y);});
-    ctx.fillStyle="#10242d";ctx.fillRect(0,552,canvas.width,68);ctx.fillStyle="#9eb6be";ctx.font="22px DM Mono,monospace";ctx.fillText(`SERIAL: ${state.vrSerial.at(-1)||"aguardando execução"}`.slice(0,76),28,594);texture.needsUpdate=true;
+    ctx.fillStyle="#e6f4f8";ctx.font="700 34px DM Mono,monospace";ctx.fillText("sketch.ino • EDITOR VR",32,49);
+    ctx.fillStyle=state.vrRunning?"#b9ff3b":"#84a2ad";ctx.textAlign="right";ctx.fillText(state.vrRunning?"● EXECUTANDO":"● PRONTO",canvas.width-32,49);ctx.textAlign="left";
+    const lines=state.vrCode.split("\n"),visible=lines.slice(-12);ctx.font="29px DM Mono,monospace";
+    visible.forEach((line,index)=>{const y=110+index*36;ctx.fillStyle="#54717c";ctx.fillText(String(lines.length-visible.length+index+1).padStart(2," "),22,y);ctx.fillStyle=/(void|pinMode|digitalWrite|delay|Serial)/.test(line)?"#8ee4ff":"#e8f2f5";ctx.fillText(line.slice(0,65),72,y,1160);});
+    ctx.fillStyle="#10242d";ctx.fillRect(0,540,canvas.width,80);ctx.fillStyle="#b9ff3b";ctx.font="23px DM Mono,monospace";ctx.fillText(state.vrEditorMessage,28,568,1220);
+    ctx.fillStyle="#9eb6be";ctx.font="22px DM Mono,monospace";ctx.fillText(`SERIAL: ${state.vrSerial.at(-1)||"aguardando execução"}`.slice(0,76),28,602,1220);texture.needsUpdate=true;
   }
 
   function activateVRAction(action,frame){
-    const now=performance.now(),last=state.xrActionTimes.get(action)||0;if(now-last<45)return;state.xrActionTimes.set(action,now);
+    const now=performance.now(),last=state.xrActionTimes.get(action)||0,delay=["pin:panel","pin:close","wire:toggle","board:lock"].includes(action)?350:65;if(now-last<delay)return;state.xrActionTimes.set(action,now);
     if(action==="run")return runVRCode();if(action==="stop")return stopVRCode();
     if(action==="rotate:left"||action==="rotate:right"){
       state.rotation+=action==="rotate:left"?-Math.PI/12:Math.PI/12;
@@ -157,6 +159,7 @@ void loop() {
     if(action==="bring:keyboard")return bringPanelsNear(frame);
     if(action==="board:lock")return toggleBoardLock();
     if(action==="pin:panel")return toggleVRPinPanel(frame);
+    if(action==="pin:close")return closeVRPinPanel();
     if(action.startsWith("pin:select:"))return selectVRPin(action.slice("pin:select:".length));
     if(action==="template:blink")state.vrCode=VR_DEMO;else if(action==="template:high")state.vrCode=VR_HIGH;else if(action==="template:low")state.vrCode=VR_LOW;else if(action==="template:clear")state.vrCode="";
     else if(action==="add:led")return addComponent("led");else if(action==="add:resistor")return addComponent("resistor");
@@ -226,7 +229,7 @@ void loop() {
   function buttonAtFinger(tip){
     if(!tip||!state.xrScene)return null;const T=window.THREE,point=new T.Vector3(...tip);state.xrScene.updateMatrixWorld(true);
     for(const button of interactiveVRButtons()){const local=button.worldToLocal(point.clone()),{width=.12,height=.07}=button.geometry.parameters||{};
-      if(Math.abs(local.x)<=width/2+.012&&Math.abs(local.y)<=height/2+.012&&local.z>=-.002&&local.z<=.065)return button;
+      if(Math.abs(local.x)<=width/2+.006&&Math.abs(local.y)<=height/2+.006&&local.z>=.003&&local.z<=.04)return button;
     }
     return null;
   }
@@ -234,17 +237,19 @@ void loop() {
     const activeHands=new Set();for(const source of state.session?.inputSources||[]){if(!source.hand)continue;
       const side=source.handedness||"none",touch=state.xrTouchStates.get(side)||{button:null,wireEndpoint:null},tip=handTip(frame,source);
       activeHands.add(side);
-      if(!tip){touch.button=null;touch.wireEndpoint=null;state.xrTouchStates.set(side,touch);continue;}
+      if(!tip){if(performance.now()-(touch.lastSeen||0)>180){touch.button=null;touch.wireEndpoint=null;}state.xrTouchStates.set(side,touch);continue;}
+      touch.lastSeen=performance.now();
       const button=buttonAtFinger(tip);
       if(button&&button!==touch.button)activateVRAction(button.userData.xrAction,frame);
       touch.button=button;
       if(state.wiringMode){
         const endpoint=terminalNearHand(tip);
-        if(endpoint&&endpoint!==touch.wireEndpoint)connectTerminal(endpoint);
-        touch.wireEndpoint=endpoint;
-      }else touch.wireEndpoint=null;
+        touch.candidateCount=endpoint===touch.candidate?(touch.candidateCount||0)+1:1;touch.candidate=endpoint;
+        if(endpoint&&endpoint!==touch.wireEndpoint&&touch.candidateCount>=3){connectTerminal(endpoint);touch.wireEndpoint=endpoint;}
+        if(!endpoint)touch.wireEndpoint=null;
+      }else{touch.wireEndpoint=null;touch.candidate=null;touch.candidateCount=0;}
       state.xrTouchStates.set(side,touch);
-    }for(const [side,touch] of state.xrTouchStates)if(!activeHands.has(side)){touch.button=null;touch.wireEndpoint=null;state.xrTouchStates.set(side,touch);}
+    }for(const [side,touch] of state.xrTouchStates)if(!activeHands.has(side)&&performance.now()-(touch.lastSeen||0)>180){touch.button=null;touch.wireEndpoint=null;state.xrTouchStates.set(side,touch);}
   }
   function updateGrabbed(frame){
     const grab=state.grabbed;if(!grab)return;const source=[...(state.session?.inputSources||[])].find(item=>item===grab.source);if(!source){state.grabbed=null;return;}
@@ -329,7 +334,7 @@ void loop() {
     if(tip){const p=new T.Vector3(...tip);let best=null,distance=.075;state.xrScene.updateMatrixWorld(true);for(const button of buttons){const d=button.getWorldPosition(new T.Vector3()).distanceTo(p);if(d<distance){best=button;distance=d;}}return best;}
     return null;
   }
-  function interactiveVRButtons(){return [...state.xrButtons,...state.xrPinButtons].filter(button=>{if(button.userData.xrDisabled)return false;for(let node=button;node;node=node.parent)if(!node.visible)return false;return true;});}
+  function interactiveVRButtons(){return [...state.xrButtons,...state.xrPinButtons].filter(button=>{if(button.userData.xrDisabled||button.parent===state.vrPinPanel&&performance.now()<(state.pinPanelReadyAt||0))return false;for(let node=button;node;node=node.parent)if(!node.visible)return false;return true;});}
   function terminalFromHit(hit){
     const T=window.THREE,model=window.CodaESPModel,board=state.xrBoard;
     let node=hit.object;while(node&&node!==board&&!state.xrParts.has(String(node.userData?.id||"")))node=node.parent;
@@ -388,17 +393,20 @@ void loop() {
   }
   function toggleVRPinPanel(frame){
     state.vrPinPanelOpen=!state.vrPinPanelOpen;if(state.vrPinPanel)state.vrPinPanel.visible=state.vrPinPanelOpen;
+    if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=!state.vrPinPanelOpen;
+    state.pinPanelReadyAt=performance.now()+320;
     if(state.vrPinPanelOpen)bringPinPanelNear(frame);
-    state.vrEditorMessage=state.vrPinPanelOpen?"PINO ESP32 • ESCOLHA O GPIO PARA INICIAR A FIAÇÃO":"SELETOR DE PINOS FECHADO";refreshVRScreen();
+    state.vrEditorMessage=state.vrPinPanelOpen?"PINOS ABERTOS • ESCOLHA UM OU TOQUE FECHAR":"PINOS FECHADOS • TECLADO DISPONÍVEL";refreshVRScreen();
   }
+  function closeVRPinPanel(){state.vrPinPanelOpen=false;if(state.vrPinPanel)state.vrPinPanel.visible=false;if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=true;state.vrEditorMessage="PINOS FECHADOS • TECLADO DISPONÍVEL";refreshVRScreen();}
   function bringPinPanelNear(frame){
     const pose=frame?.getViewerPose?.(state.refSpace),m=pose?.transform?.matrix;if(!m||!state.vrPinPanel)return;
-    const fx=-m[8],fz=-m[10],len=Math.hypot(fx,fz)||1,rx=m[0],rz=m[2];state.vrPinPanel.position.set(m[12]+fx/len*.72+rx*.52,m[13]+.10,m[14]+fz/len*.72+rz*.52);state.vrPinPanel.rotation.set(0,Math.atan2(-fx/len,-fz/len),0);
+    const fx=-m[8],fz=-m[10],len=Math.hypot(fx,fz)||1,rx=m[0],rz=m[2];state.vrPinPanel.position.set(m[12]+fx/len*.82+rx*.42,m[13]-.04,m[14]+fz/len*.82+rz*.42);state.vrPinPanel.rotation.set(0,Math.atan2(-fx/len,-fz/len),0);
   }
   function selectVRPin(name){
-    if(!window.CodaESPModel.pinPoint(name)){state.vrEditorMessage=`PINO INVÁLIDO: ${name}`;refreshVRScreen();return;}
+    if(!window.CodaESPModel.pinPoint(name)||window.CodaESPModel.reserved.has(name)){state.vrEditorMessage=`PINO INDISPONÍVEL: ${name}`;refreshVRScreen();return;}
     if(!state.wiringMode){state.wiringMode=true;state.pendingTerminal=null;}
-    state.vrPinPanelOpen=false;if(state.vrPinPanel)state.vrPinPanel.visible=false;
+    for(const button of state.xrPinButtons)if(button.userData.xrAction?.startsWith("pin:select:"))button.material.color.set(button.userData.xrAction===`pin:select:${name}`?"#4a7231":"#17313d");
     connectTerminal(`ESP32:${name}`);
     if(state.wiringMode)state.vrEditorMessage=`ESP32 ${window.CodaESPModel.label(name)} SELECIONADO • TOQUE NO PIN NOMEADO DO COMPONENTE`;
     refreshVRScreen();
@@ -407,7 +415,11 @@ void loop() {
     if(!endpoint)return false;
     if(!state.pendingTerminal){state.pendingTerminal=endpoint;state.vrEditorMessage=`TERMINAL: ${endpoint} • ESCOLHA O SEGUNDO`;refreshVRScreen();return true;}
     if(state.pendingTerminal===endpoint){state.pendingTerminal=null;state.vrEditorMessage="ESCOLHA DOIS TERMINAIS DIFERENTES";refreshVRScreen();return true;}
-    const first=state.pendingTerminal;state.xrConnections.push([first,endpoint]);
+    const first=state.pendingTerminal;
+    if(state.xrConnections.some(([a,b])=>a===first&&b===endpoint||a===endpoint&&b===first)){
+      state.pendingTerminal=null;state.wiringMode=false;state.vrEditorMessage="ESTES TERMINAIS JÁ ESTÃO LIGADOS";refreshVRScreen();return false;
+    }
+    state.xrConnections.push([first,endpoint]);
     state.pendingTerminal=null;state.wiringMode=false;state.xrWiresDirty=true;refreshXRWires();
     inferVRLedPins();
     state.vrEditorMessage=`FIO LIGADO • ${endpoint}`;refreshVRScreen();return true;
@@ -447,6 +459,7 @@ void loop() {
     const fx=-matrix[8],fz=-matrix[10],length=Math.hypot(fx,fz)||1,forwardX=fx/length,forwardZ=fz/length,rightX=matrix[0],rightZ=matrix[2],px=matrix[12],py=matrix[13],pz=matrix[14],yaw=Math.atan2(-forwardX,-forwardZ);
     if(state.vrEditorRoot){state.vrEditorRoot.position.set(px+forwardX*.78-rightX*.42,py-.04,pz+forwardZ*.78-rightZ*.42);state.vrEditorRoot.rotation.set(0,yaw,0);}
     if(state.vrKeyboardRoot){state.vrKeyboardRoot.position.set(px+forwardX*.62+rightX*.43,py-.34,pz+forwardZ*.62+rightZ*.43);state.vrKeyboardRoot.rotation.set(-.12,yaw,0);}
+    if(state.vrPinPanelOpen)bringPinPanelNear(frame);
   }
   function onSelectStart(event){
     if(state.experience!=="vr"||state.mode!=="lab")return;
