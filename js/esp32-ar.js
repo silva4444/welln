@@ -9,7 +9,7 @@
     mode: "view", experience: "vr", support: {vr:false,ar:false}, placed: false, selected: null, scale: 1, rotation: 0,
     board: { id:"ESP32", kind:"board", x:0, y:0, z:-0.65 },
     components: [], program: null, cube: null, frameHandle: null, device: "headset",
-    grabbed: null, xrButtons: [], xrHands: new Map(), xrInputStates: new Map(),
+    grabbed: null, xrButtons: [], xrHands: new Map(), xrInputStates: new Map(), xrTouchStates:new Map(),xrActionTimes:new Map(),
     wiringMode:false, pendingTerminal:null, xrConnections:[], xrWires:null, xrWiresDirty:true, xrTable:null,
     vrCode: "", vrRuntime: null, vrRunning: false, vrScreen: null, vrSerial: [], vrEditorMessage: "PRONTO PARA PROGRAMAR",
     mobile: { stream:null, fallback:false, placed:false, locked:false, x:50, y:58, scale:1, rotation:0, dragging:false, dragDx:0, dragDy:0, pinchDistance:0, renderer:null }
@@ -132,6 +132,7 @@ void loop() {
   }
 
   function activateVRAction(action,frame){
+    const now=performance.now(),last=state.xrActionTimes.get(action)||0;if(now-last<45)return;state.xrActionTimes.set(action,now);
     if(action==="run")return runVRCode();if(action==="stop")return stopVRCode();
     if(action==="rotate:left"||action==="rotate:right"){
       state.rotation+=action==="rotate:left"?-Math.PI/12:Math.PI/12;
@@ -206,6 +207,29 @@ void loop() {
   }
   function rayForSource(frame,source){const pose=frame.getPose(source.targetRaySpace,state.refSpace);return pose?rayFromPose(pose):null;}
   function handTip(frame,source){if(!source.hand||!frame.getJointPose)return null;const space=source.hand.get("index-finger-tip"),pose=space&&frame.getJointPose(space,state.refSpace);if(!pose)return null;const p=pose.transform.position;return [p.x,p.y,p.z];}
+  function buttonAtFinger(tip){
+    if(!tip||!state.xrScene)return null;const T=window.THREE,point=new T.Vector3(...tip);state.xrScene.updateMatrixWorld(true);
+    for(const button of state.xrButtons){const local=button.worldToLocal(point.clone()),{width=.12,height=.07}=button.geometry.parameters||{};
+      if(Math.abs(local.x)<=width/2+.012&&Math.abs(local.y)<=height/2+.012&&local.z>=-.002&&local.z<=.065)return button;
+    }
+    return null;
+  }
+  function updateHandTouches(frame){
+    const activeHands=new Set();for(const source of state.session?.inputSources||[]){if(!source.hand)continue;
+      const side=source.handedness||"none",touch=state.xrTouchStates.get(side)||{button:null,wireEndpoint:null},tip=handTip(frame,source);
+      activeHands.add(side);
+      if(!tip){touch.button=null;touch.wireEndpoint=null;state.xrTouchStates.set(side,touch);continue;}
+      const button=buttonAtFinger(tip);
+      if(button&&button!==touch.button)activateVRAction(button.userData.xrAction,frame);
+      touch.button=button;
+      if(state.wiringMode){
+        const endpoint=terminalNearHand(tip);
+        if(endpoint&&endpoint!==touch.wireEndpoint)connectTerminal(endpoint);
+        touch.wireEndpoint=endpoint;
+      }else touch.wireEndpoint=null;
+      state.xrTouchStates.set(side,touch);
+    }for(const [side,touch] of state.xrTouchStates)if(!activeHands.has(side)){touch.button=null;touch.wireEndpoint=null;state.xrTouchStates.set(side,touch);}
+  }
   function updateGrabbed(frame){
     const grab=state.grabbed;if(!grab)return;const source=[...(state.session?.inputSources||[])].find(item=>item===grab.source);if(!source){state.grabbed=null;return;}
     const tip=handTip(frame,source),ray=rayForSource(frame,source);let p=tip;
@@ -220,7 +244,7 @@ void loop() {
   function renderFrame(time,frame){
     if(!frame||!state.session)return;
     if(state.hitSource){const hits=frame.getHitTestResults(state.hitSource);state.lastHit=hits[0]?.getPose(state.refSpace)?.transform.matrix||null;}
-    updateHands(frame);updateGrabbed(frame);
+    updateHands(frame);updateHandTouches(frame);updateGrabbed(frame);
     const T=window.THREE,model=window.CodaESPModel,board=state.xrBoard,sc=.03*state.scale;
     board.visible=state.placed;board.position.set(state.board.x,state.board.y+.01*state.scale,state.board.z);board.rotation.y=state.rotation;board.scale.setScalar(sc);
     board.userData.setHardware(state.hardware||{});
@@ -326,7 +350,7 @@ void loop() {
     });
     state.xrWiresDirty=false;
   }
-  function toggleWiring(){state.wiringMode=!state.wiringMode;state.pendingTerminal=null;state.vrEditorMessage=state.wiringMode?"FIACAO ATIVA • PINCE DOIS TERMINAIS":"FIACAO PAUSADA";refreshVRScreen();}
+  function toggleWiring(){state.wiringMode=!state.wiringMode;state.pendingTerminal=null;state.vrEditorMessage=state.wiringMode?"FIACAO ATIVA • TOQUE EM DOIS TERMINAIS":"FIACAO PAUSADA";refreshVRScreen();}
   function connectTerminal(endpoint){
     if(!endpoint)return false;
     if(!state.pendingTerminal){state.pendingTerminal=endpoint;state.vrEditorMessage=`TERMINAL: ${endpoint} • ESCOLHA O SEGUNDO`;refreshVRScreen();return true;}
@@ -367,7 +391,13 @@ void loop() {
     if(state.experience!=="vr"||state.mode!=="lab")return;
     const frame=event.frame,source=event.inputSource,ray=rayForSource(frame,source),tip=handTip(frame,source),button=hitVRButton(ray,tip);
     if(button){activateVRAction(button.userData.xrAction,frame);button.scale.set(.9,.9,.9);setTimeout(()=>button.scale.set(1,1,1),110);return;}
-    if(state.wiringMode){const endpoint=pickWireTerminal(ray,tip);if(endpoint)connectTerminal(endpoint);else{state.vrEditorMessage="APONTE PARA UM PIN OU TERMINAL DO COMPONENTE";refreshVRScreen();}return;}
+    if(state.wiringMode){
+      const endpoint=pickWireTerminal(ray,tip),side=source.handedness||"none",touch=state.xrTouchStates.get(side)||{button:null,wireEndpoint:null};
+      if(endpoint&&touch.wireEndpoint!==endpoint){connectTerminal(endpoint);if(source.hand){touch.wireEndpoint=endpoint;state.xrTouchStates.set(side,touch);}}
+      else if(!endpoint&&source.hand){touch.wireEndpoint=null;state.xrTouchStates.set(side,touch);}
+      else if(!endpoint){state.vrEditorMessage="TOQUE EM UM PIN OU TERMINAL";refreshVRScreen();}
+      return;
+    }
     const panel=findPanelHit(ray);
     if(panel){const point=tip?new window.THREE.Vector3(...tip):panel.point,distance=ray?new window.THREE.Vector3(...ray.origin).distanceTo(panel.point):.65;state.grabbed={source,object:panel.root,kind:"panel",distance,offset:panel.root.position.clone().sub(point)};state.vrEditorMessage="PAINEL PRESO • MOVA E SOLTE A PINCA";refreshVRScreen();return;}
     const object=hitObjectNear(tip)||hitObject(ray);if(!object)return;
@@ -444,7 +474,7 @@ void loop() {
       state.refSpace=state.xrRenderer.xr.getReferenceSpace(); state.viewerSpace=await session.requestReferenceSpace("viewer");
       if(state.experience==="ar"){try{ state.hitSource=await session.requestHitTestSource({space:state.viewerSpace}); }catch{ state.hitSource=null; }}else state.hitSource=null;
       session.addEventListener("selectstart",onSelectStart);session.addEventListener("selectend",onSelectEnd);session.addEventListener("select",onSelect);session.addEventListener("end",onEnd);
-      status(state.experience==="vr"?"Laboratório VR interativo iniciado":"RA iniciada",state.device==="mobile"?"Aponte para a mesa e toque na tela para posicionar o ESP32.":state.experience==="vr"?"Use GIRAR, FIACAO e TRAZER MESA no painel. Aproxime o teclado, pince as teclas e toque RUN para executar.":"Olhe para a bancada e faça uma pinça/clique para posicionar o ESP32.","ok"); updateButtons(); state.xrRenderer.setAnimationLoop(renderFrame);
+      status(state.experience==="vr"?"Laboratório VR interativo iniciado":"RA iniciada",state.device==="mobile"?"Aponte para a mesa e toque na tela para posicionar o ESP32.":state.experience==="vr"?"Use GIRAR, FIACAO e TRAZER MESA no painel. Aproxime o teclado e toque nas teclas com o indicador; toque RUN para executar.":"Olhe para a bancada e faça uma pinça/clique para posicionar o ESP32.","ok"); updateButtons(); state.xrRenderer.setAnimationLoop(renderFrame);
       return true;
     }catch(error){
       console.error(error);
@@ -456,7 +486,7 @@ void loop() {
     }
   }
   async function exitAR(){ try{ await state.session?.end(); }catch{} }
-  function cleanup(){ state.hitSource?.cancel?.(); state.hitSource=null;state.grabbed=null;state.vrRuntime?.stop?.();state.vrRunning=false; state.session=null; state.refSpace=null; state.viewerSpace=null; state.lastHit=null; state.selected=null; state.xrRenderer?.setAnimationLoop(null); if(state.xrScene)window.CodaESPModel?.dispose(state.xrScene);state.xrRenderer?.dispose();state.xrRenderer=null;state.xrScene=null;state.xrCircuit=null;state.xrButtons=[];state.xrHands.clear();state.vrScreen=null;state.canvas?.remove(); state.canvas=null; state.gl=null; updateButtons(); }
+  function cleanup(){ state.hitSource?.cancel?.(); state.hitSource=null;state.grabbed=null;state.xrTouchStates.clear();state.xrActionTimes.clear();state.wiringMode=false;state.pendingTerminal=null;state.vrRuntime?.stop?.();state.vrRunning=false; state.session=null; state.refSpace=null; state.viewerSpace=null; state.lastHit=null; state.selected=null; state.xrRenderer?.setAnimationLoop(null); if(state.xrScene)window.CodaESPModel?.dispose(state.xrScene);state.xrRenderer?.dispose();state.xrRenderer=null;state.xrScene=null;state.xrCircuit=null;state.xrWires=null;state.xrTable=null;state.xrButtons=[];state.xrHands.clear();state.vrScreen=null;state.vrEditorRoot=null;state.vrKeyboardRoot=null;state.canvas?.remove(); state.canvas=null; state.gl=null; updateButtons(); }
   function onEnd(){ cleanup(); setStatus("Sessão encerrada","Você pode entrar novamente quando quiser.",state.supported?"ok":"warn"); }
 
   function clampMobile(value,min,max){return Math.max(min,Math.min(max,value));}

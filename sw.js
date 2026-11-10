@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "coda-estudos-v14-6-vr-controls";
+const CACHE_NAME = "coda-estudos-v14-6-vr-touch-keyboard";
 const CORE_FILES = [
   "./index.html",
   "./vr-preview.html",
@@ -29,7 +29,7 @@ const CORE_FILES = [
   "./dados.json",
   "./banco.json",
   "./manifest.json",
-  "./script.js?v=14.6.1",
+  "./script.js?v=14.6.2",
   "./components/esp32-reference.css?v=14.3.0",
   "./js/utils.js?v=14.0.0",
   "./js/state.js?v=14.6.0",
@@ -50,7 +50,7 @@ const CORE_FILES = [
   "./js/esp32-3d.js?v=14.4.0",
   "./js/circuit-3d.js?v=14.0.0",
   "./js/lesson-videos.js?v=14.0.0",
-  "./js/esp32-ar.js?v=14.6.1",
+  "./js/esp32-ar.js?v=14.6.2",
   "./js/esp32-ar-lab.js?v=14.4.0",
   "./js/esp32-firmware.js?v=14.3.0",
   "./js/tutor.js?v=14.0.0",

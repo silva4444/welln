@@ -35,6 +35,8 @@ test("VR oferece rotação, ligação entre terminais e fios visíveis",()=>{
   assert.match(xr,/function connectTerminal\(endpoint\)/);
   assert.match(xr,/new T\.TubeGeometry\(curve,18,\.0028,6,false\)/);
   assert.match(xr,/\"wire:toggle\"/);
+  assert.match(xr,/FIACAO ATIVA • TOQUE EM DOIS TERMINAIS/);
+  assert.match(xr,/function terminalNearHand\(tip\)/);
 });
 
 test("VR permite trazer mesa e painéis até o usuário e mover os painéis",()=>{
@@ -71,6 +73,10 @@ test("VR inclui editor Arduino, teclado virtual e execução sem tela externa",(
   assert.match(xr,/core\.createRuntime/);
   assert.match(xr,/runtime\.start\(state\.vrCode\|\|VR_DEMO\)/);
   assert.match(xr,/activateVRAction/);
+  assert.match(xr,/function buttonAtFinger\(tip\)/);
+  assert.match(xr,/function updateHandTouches\(frame\)/);
+  assert.match(xr,/button&&button!==touch\.button\)activateVRAction/);
+  assert.match(html,/Toque as letras com o indicador, como num teclado/);
 });
 
 test("abas de turma usam semântica e navegação por teclado",()=>{
