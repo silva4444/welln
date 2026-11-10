@@ -9,8 +9,9 @@
     mode: "view", experience: "vr", support: {vr:false,ar:false}, placed: false, selected: null, scale: 1, rotation: 0,
     board: { id:"ESP32", kind:"board", x:0, y:0, z:-0.65 },
     components: [], program: null, cube: null, frameHandle: null, device: "headset",
-    grabbed: null, xrButtons: [], xrHands: new Map(), xrInputStates: new Map(), xrTouchStates:new Map(),xrActionTimes:new Map(),
+    grabbed: null, xrButtons: [], xrPinButtons: [], xrHands: new Map(), xrInputStates: new Map(), xrTouchStates:new Map(),xrActionTimes:new Map(),
     wiringMode:false, pendingTerminal:null, xrConnections:[], xrWires:null, xrWiresDirty:true, xrTable:null,
+    boardLocked:false, vrPinPanel:null, vrPinPanelOpen:false, vrLockButton:null,
     vrCode: "", vrRuntime: null, vrRunning: false, vrScreen: null, vrSerial: [], vrEditorMessage: "PRONTO PARA PROGRAMAR",
     mobile: { stream:null, fallback:false, placed:false, locked:false, x:50, y:58, scale:1, rotation:0, dragging:false, dragDx:0, dragDy:0, pinchDistance:0, renderer:null }
   };
@@ -99,26 +100,33 @@ void loop() {
     return new window.THREE.MeshBasicMaterial({map:view.texture,transparent:false});
   }
 
-  function vrButton(parent,label,action,x,y,w=.16,h=.065,color="#152b35"){
+  function vrButton(parent,label,action,x,y,w=.16,h=.065,color="#152b35",registry=state.xrButtons){
     const T=window.THREE,button=new T.Mesh(new T.BoxGeometry(w,h,.022),new T.MeshStandardMaterial({color,roughness:.68,metalness:.08}));
     button.position.set(x,y,.025);button.userData.xrAction=action;button.userData.xrInteractive=true;
-    const face=new T.Mesh(new T.PlaneGeometry(w*.92,h*.78),labelMaterial(label,{width:384,height:112,bg:color,accent:action==="run"?"#b9ff3b":"#557984",font:40}));face.position.z=.012;button.add(face);parent.add(button);state.xrButtons.push(button);return button;
+    const face=new T.Mesh(new T.PlaneGeometry(w*.92,h*.78),labelMaterial(label,{width:384,height:112,bg:color,accent:action==="run"?"#b9ff3b":"#557984",font:40}));face.position.z=.012;button.add(face);parent.add(button);registry.push(button);return button;
   }
 
   function buildVREditor(scene){
     const T=window.THREE,root=new T.Group();root.name="CODA_VR_EDITOR";root.position.set(-.56,1.40,-.88);root.rotation.y=.10;scene.add(root);
-    const panel=new T.Mesh(new T.BoxGeometry(1.62,1.04,.035),new T.MeshStandardMaterial({color:0x071218,roughness:.72,metalness:.12}));root.add(panel);
+    const panel=new T.Mesh(new T.BoxGeometry(1.62,1.28,.035),new T.MeshStandardMaterial({color:0x071218,roughness:.72,metalness:.12}));root.add(panel);
     const screenData=canvasTexture(1280,620),screen=new T.Mesh(new T.PlaneGeometry(1.5,.70),new T.MeshBasicMaterial({map:screenData.texture}));screen.position.set(0,.14,.02);root.add(screen);
     state.vrScreen=screenData;
     [["BLINK","template:blink",-.60,-.32,.18],["HIGH","template:high",-.40,-.32,.16],["LOW","template:low",-.22,-.32,.15],["+ LED","add:led",-.04,-.32,.17],["+ R","add:resistor",.16,-.32,.17],["▶ RUN","run",.39,-.32,.19],["■ STOP","stop",.60,-.32,.18]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.065,action==="run"?"#416b19":"#15303b"));
-    [["↶ GIRAR","rotate:left",-.65,-.45,.18],["↷ GIRAR","rotate:right",-.44,-.45,.18],["FIACAO","wire:toggle",-.22,-.45,.21],["APAGAR FIOS","wire:clear",.03,-.45,.23],["TRAZER MESA","bring:table",.33,-.45,.27],["PAINEIS PERTO","bring:keyboard",.62,-.45,.30]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.062,action==="wire:toggle"?"#284c3a":"#15303b"));
+    [["↶ GIRAR","rotate:left",-.65,-.45,.18],["↷ GIRAR","rotate:right",-.44,-.45,.18],["FIAÇÃO","wire:toggle",-.22,-.45,.21],["APAGAR FIOS","wire:clear",.03,-.45,.23],["TRAZER MESA","bring:table",.33,-.45,.27],["PAINÉIS PERTO","bring:keyboard",.62,-.45,.30]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.062,action==="wire:toggle"?"#284c3a":"#15303b"));
+    state.vrLockButton=vrButton(root,"FIXAR ESP","board:lock",-.30,-.58,.30,.064,"#31523a");
+    vrButton(root,"PINO ESP","pin:panel",.15,-.58,.28,.064,"#34526a");
 
     const keyboard=new T.Group();keyboard.name="CODA_VR_KEYBOARD";keyboard.position.set(.60,1.12,-.78);keyboard.rotation.set(-.17,-.12,0);scene.add(keyboard);
     const base=new T.Mesh(new T.BoxGeometry(1.22,.66,.04),new T.MeshStandardMaterial({color:0x09171e,roughness:.75,metalness:.1}));keyboard.add(base);
     const rows=["1234567890","qwertyuiop","asdfghjkl","zxcvbnm","\"'!+-*/%:#[]"];
     rows.forEach((chars,row)=>{const keyW=chars.length>10?.079:.098,gap=.011,total=chars.length*(keyW+gap)-gap;[...chars].forEach((char,i)=>vrButton(keyboard,char.toUpperCase(),`key:${char}`,-total/2+keyW/2+i*(keyW+gap),.255-row*.105,keyW,.074,"#132933"));});
     vrButton(keyboard,"SPACE","space",-.35,-.275,.28,.075,"#173642");vrButton(keyboard,"ENTER","enter",-.03,-.275,.24,.075,"#173642");vrButton(keyboard,"⌫", "backspace",.22,-.275,.16,.075,"#43303a");vrButton(keyboard,"▶ RUN", "run",.42,-.275,.18,.075,"#416b19");
-    state.vrEditorRoot=root;state.vrKeyboardRoot=keyboard;refreshVRScreen();
+    const pinPanel=new T.Group();pinPanel.name="CODA_VR_PIN_PICKER";pinPanel.position.set(.72,1.42,-.92);pinPanel.rotation.y=-.12;pinPanel.visible=false;scene.add(pinPanel);
+    const pinBack=new T.Mesh(new T.BoxGeometry(1.28,1.12,.035),new T.MeshStandardMaterial({color:0x071218,roughness:.72,metalness:.12}));pinPanel.add(pinBack);
+    const pinHeader=new T.Mesh(new T.PlaneGeometry(1.20,.15),labelMaterial("ESCOLHA UM PINO DO ESP32",{width:900,height:120,bg:"#10242d",accent:"#b9ff3b",font:42}));pinHeader.position.set(0,.46,.022);pinPanel.add(pinHeader);
+    const pinNames=[...window.CodaESPModel.left,...window.CodaESPModel.right];
+    pinNames.forEach((name,index)=>{const col=index%4,row=Math.floor(index/4),x=-.445+col*.30,y=.32-row*.085,reserved=window.CodaESPModel.reserved.has(name),label=reserved?`${window.CodaESPModel.label(name)} · FLASH`:window.CodaESPModel.label(name),button=vrButton(pinPanel,label,reserved?"pin:locked":`pin:select:${name}`,x,y,.27,.067,reserved?"#313840":"#17313d",state.xrPinButtons);button.userData.xrDisabled=reserved;});
+    state.vrEditorRoot=root;state.vrKeyboardRoot=keyboard;state.vrPinPanel=pinPanel;refreshVRScreen();
   }
 
   function refreshVRScreen(){
@@ -143,6 +151,9 @@ void loop() {
     if(action==="wire:clear"){state.xrConnections=[];state.pendingTerminal=null;state.wiringMode=false;refreshXRWires();state.vrEditorMessage="FIOS REMOVIDOS";refreshVRScreen();return;}
     if(action==="bring:table")return bringTableNear(frame);
     if(action==="bring:keyboard")return bringPanelsNear(frame);
+    if(action==="board:lock")return toggleBoardLock();
+    if(action==="pin:panel")return toggleVRPinPanel(frame);
+    if(action.startsWith("pin:select:"))return selectVRPin(action.slice("pin:select:".length));
     if(action==="template:blink")state.vrCode=VR_DEMO;else if(action==="template:high")state.vrCode=VR_HIGH;else if(action==="template:low")state.vrCode=VR_LOW;
     else if(action==="add:led")return addComponent("led");else if(action==="add:resistor")return addComponent("resistor");
     else if(action==="space")state.vrCode+=" ";else if(action==="enter")state.vrCode+="\n";else if(action==="backspace")state.vrCode=state.vrCode.slice(0,-1);else if(action.startsWith("key:"))state.vrCode+=action.slice(4);
@@ -209,7 +220,7 @@ void loop() {
   function handTip(frame,source){if(!source.hand||!frame.getJointPose)return null;const space=source.hand.get("index-finger-tip"),pose=space&&frame.getJointPose(space,state.refSpace);if(!pose)return null;const p=pose.transform.position;return [p.x,p.y,p.z];}
   function buttonAtFinger(tip){
     if(!tip||!state.xrScene)return null;const T=window.THREE,point=new T.Vector3(...tip);state.xrScene.updateMatrixWorld(true);
-    for(const button of state.xrButtons){const local=button.worldToLocal(point.clone()),{width=.12,height=.07}=button.geometry.parameters||{};
+    for(const button of interactiveVRButtons()){const local=button.worldToLocal(point.clone()),{width=.12,height=.07}=button.geometry.parameters||{};
       if(Math.abs(local.x)<=width/2+.012&&Math.abs(local.y)<=height/2+.012&&local.z>=-.002&&local.z<=.065)return button;
     }
     return null;
@@ -255,6 +266,7 @@ void loop() {
         // Reutiliza a mesma peça e os mesmos dados visuais da bancada do PC.
         part=model.createPart({...item,type:item.kind||item.type});
         part.userData.id=String(item.id);
+        addVRComponentPinLabels(part);
         state.xrScene.add(part);state.xrParts.set(item.id,part);
       }
       part.visible=state.placed;
@@ -301,12 +313,13 @@ void loop() {
     for(const object of objects){const d=Math.hypot(object.x-point[0],object.y-point[1],object.z-point[2]);if(d<distance){best=object;distance=d;}}return best;
   }
   function hitVRButton(ray,tip){
-    const T=window.THREE;if(!state.xrButtons.length)return null;
+    const T=window.THREE,buttons=interactiveVRButtons();if(!buttons.length)return null;
     state.xrScene?.updateMatrixWorld(true);
-    if(ray){const caster=new T.Raycaster(new T.Vector3(...ray.origin),new T.Vector3(...ray.dir).normalize(),0,4);const hit=caster.intersectObjects(state.xrButtons,false)[0]?.object;if(hit)return hit;}
-    if(tip){const p=new T.Vector3(...tip);let best=null,distance=.075;state.xrScene.updateMatrixWorld(true);for(const button of state.xrButtons){const d=button.getWorldPosition(new T.Vector3()).distanceTo(p);if(d<distance){best=button;distance=d;}}return best;}
+    if(ray){const caster=new T.Raycaster(new T.Vector3(...ray.origin),new T.Vector3(...ray.dir).normalize(),0,4);const hit=caster.intersectObjects(buttons,false)[0]?.object;if(hit)return hit;}
+    if(tip){const p=new T.Vector3(...tip);let best=null,distance=.075;state.xrScene.updateMatrixWorld(true);for(const button of buttons){const d=button.getWorldPosition(new T.Vector3()).distanceTo(p);if(d<distance){best=button;distance=d;}}return best;}
     return null;
   }
+  function interactiveVRButtons(){return [...state.xrButtons,...state.xrPinButtons].filter(button=>{if(button.userData.xrDisabled)return false;for(let node=button;node;node=node.parent)if(!node.visible)return false;return true;});}
   function terminalFromHit(hit){
     const T=window.THREE,model=window.CodaESPModel,board=state.xrBoard;
     let node=hit.object;while(node&&node!==board&&!state.xrParts.has(String(node.userData?.id||"")))node=node.parent;
@@ -326,6 +339,12 @@ void loop() {
     for(const name of [...model.left,...model.right]){const p=state.xrBoard.localToWorld(model.pinPoint(name).clone()),d=p.distanceTo(point);if(d<distance){best=`ESP32:${name}`;distance=d;}}
     for(const part of state.xrParts.values())for(const [name,local] of Object.entries(part.userData.terminals||{})){const d=part.localToWorld(local.clone()).distanceTo(point);if(d<distance){best=`${part.userData.id}:${name}`;distance=d;}}
     return best;
+  }
+  function addVRComponentPinLabels(part){
+    const T=window.THREE;for(const [name,p] of Object.entries(part.userData.terminals||{})){
+      const tag=new T.Mesh(new T.PlaneGeometry(.32,.105),labelMaterial(name,{width:256,height:96,bg:"#102933",accent:"#ffc45b",font:50}));
+      tag.position.set(p.x,p.y+.22,p.z+.045);tag.renderOrder=3;part.add(tag);
+    }
   }
   function pickWireTerminal(ray,tip){
     const T=window.THREE;if(tip){const near=terminalNearHand(tip);if(near)return near;}
@@ -351,6 +370,29 @@ void loop() {
     state.xrWiresDirty=false;
   }
   function toggleWiring(){state.wiringMode=!state.wiringMode;state.pendingTerminal=null;state.vrEditorMessage=state.wiringMode?"FIACAO ATIVA • TOQUE EM DOIS TERMINAIS":"FIACAO PAUSADA";refreshVRScreen();}
+  function toggleBoardLock(){
+    state.boardLocked=!state.boardLocked;
+    const label=state.boardLocked?"LIBERAR ESP":"FIXAR ESP",face=state.vrLockButton?.children?.[0];
+    if(face){const old=face.material;face.material=labelMaterial(label,{width:384,height:112,bg:state.boardLocked?"#5a381e":"#31523a",accent:"#ffc45b",font:40});old?.map?.dispose?.();old?.dispose?.();state.vrLockButton.material.color.set(state.boardLocked?"#75502c":"#31523a");}
+    state.vrEditorMessage=state.boardLocked?"ESP32 FIXO NA BANCADA • TOQUE LIBERAR PARA MOVER":"ESP32 LIBERADO • ARRASTE PARA POSICIONAR";refreshVRScreen();
+  }
+  function toggleVRPinPanel(frame){
+    state.vrPinPanelOpen=!state.vrPinPanelOpen;if(state.vrPinPanel)state.vrPinPanel.visible=state.vrPinPanelOpen;
+    if(state.vrPinPanelOpen)bringPinPanelNear(frame);
+    state.vrEditorMessage=state.vrPinPanelOpen?"PINO ESP32 • ESCOLHA O GPIO PARA INICIAR A FIAÇÃO":"SELETOR DE PINOS FECHADO";refreshVRScreen();
+  }
+  function bringPinPanelNear(frame){
+    const pose=frame?.getViewerPose?.(state.refSpace),m=pose?.transform?.matrix;if(!m||!state.vrPinPanel)return;
+    const fx=-m[8],fz=-m[10],len=Math.hypot(fx,fz)||1,rx=m[0],rz=m[2];state.vrPinPanel.position.set(m[12]+fx/len*.72+rx*.52,m[13]+.10,m[14]+fz/len*.72+rz*.52);state.vrPinPanel.rotation.set(0,Math.atan2(-fx/len,-fz/len),0);
+  }
+  function selectVRPin(name){
+    if(!window.CodaESPModel.pinPoint(name)){state.vrEditorMessage=`PINO INVÁLIDO: ${name}`;refreshVRScreen();return;}
+    if(!state.wiringMode){state.wiringMode=true;state.pendingTerminal=null;}
+    state.vrPinPanelOpen=false;if(state.vrPinPanel)state.vrPinPanel.visible=false;
+    connectTerminal(`ESP32:${name}`);
+    if(state.wiringMode)state.vrEditorMessage=`ESP32 ${window.CodaESPModel.label(name)} SELECIONADO • TOQUE NO PIN NOMEADO DO COMPONENTE`;
+    refreshVRScreen();
+  }
   function connectTerminal(endpoint){
     if(!endpoint)return false;
     if(!state.pendingTerminal){state.pendingTerminal=endpoint;state.vrEditorMessage=`TERMINAL: ${endpoint} • ESCOLHA O SEGUNDO`;refreshVRScreen();return true;}
@@ -370,8 +412,8 @@ void loop() {
     }
   }
   function findPanelHit(ray){
-    if(!ray)return null;const T=window.THREE,roots=[state.vrEditorRoot,state.vrKeyboardRoot].filter(Boolean),caster=new T.Raycaster(new T.Vector3(...ray.origin),new T.Vector3(...ray.dir).normalize(),0,3),hit=caster.intersectObjects(roots,true)[0];if(!hit)return null;
-    let root=hit.object;while(root&&root!==state.vrEditorRoot&&root!==state.vrKeyboardRoot)root=root.parent;
+    if(!ray)return null;const T=window.THREE,roots=[state.vrEditorRoot,state.vrKeyboardRoot,state.vrPinPanel].filter(root=>root?.visible),caster=new T.Raycaster(new T.Vector3(...ray.origin),new T.Vector3(...ray.dir).normalize(),0,3),hit=caster.intersectObjects(roots,true)[0];if(!hit)return null;
+    let root=hit.object;while(root&&root!==state.vrEditorRoot&&root!==state.vrKeyboardRoot&&root!==state.vrPinPanel)root=root.parent;
     return root?{root,point:hit.point}:null;
   }
   function bringTableNear(frame){
@@ -401,6 +443,7 @@ void loop() {
     const panel=findPanelHit(ray);
     if(panel){const point=tip?new window.THREE.Vector3(...tip):panel.point,distance=ray?new window.THREE.Vector3(...ray.origin).distanceTo(panel.point):.65;state.grabbed={source,object:panel.root,kind:"panel",distance,offset:panel.root.position.clone().sub(point)};state.vrEditorMessage="PAINEL PRESO • MOVA E SOLTE A PINCA";refreshVRScreen();return;}
     const object=hitObjectNear(tip)||hitObject(ray);if(!object)return;
+    if(object===state.board&&state.boardLocked){state.vrEditorMessage="ESP32 FIXO • TOQUE EM LIBERAR ESP PARA MOVER";refreshVRScreen();return;}
     const grabDistance=tip?.length?0.12:(ray?Math.max(.18,Math.hypot(object.x-ray.origin[0],object.y-ray.origin[1],object.z-ray.origin[2])):.72);
     state.grabbed={source,object,distance:grabDistance};state.selected=object.id;state.vrEditorMessage=`✋ ${object.id} PRESO À MÃO`;refreshVRScreen();updateButtons();
   }
@@ -468,13 +511,14 @@ void loop() {
         if(!state.components.length){addComponent("led");addComponent("resistor");}
         arrangeComponents();
         try{state.vrCode=localStorage.getItem("coda-vr-sketch-v146")||$("#espFirmwareCode")?.value||VR_DEMO;}catch{state.vrCode=VR_DEMO;}
-        state.vrEditorMessage="PRONTO • PINÇA PARA AGARRAR OU PROGRAMAR";refreshVRScreen();
+        state.boardLocked=false;state.vrEditorMessage="PRONTO • ARRASTE A PLACA E TOQUE FIXAR ESP";refreshVRScreen();
       }
       if(state.xrCircuitSnapshot)importPrototype();
       state.refSpace=state.xrRenderer.xr.getReferenceSpace(); state.viewerSpace=await session.requestReferenceSpace("viewer");
       if(state.experience==="ar"){try{ state.hitSource=await session.requestHitTestSource({space:state.viewerSpace}); }catch{ state.hitSource=null; }}else state.hitSource=null;
       session.addEventListener("selectstart",onSelectStart);session.addEventListener("selectend",onSelectEnd);session.addEventListener("select",onSelect);session.addEventListener("end",onEnd);
-      status(state.experience==="vr"?"Laboratório VR interativo iniciado":"RA iniciada",state.device==="mobile"?"Aponte para a mesa e toque na tela para posicionar o ESP32.":state.experience==="vr"?"Use GIRAR, FIACAO e TRAZER MESA no painel. Aproxime o teclado e toque nas teclas com o indicador; toque RUN para executar.":"Olhe para a bancada e faça uma pinça/clique para posicionar o ESP32.","ok"); updateButtons(); state.xrRenderer.setAnimationLoop(renderFrame);
+      status(state.experience==="vr"?"Laboratório VR interativo iniciado":"RA iniciada",state.device==="mobile"?"Aponte para a mesa e toque na tela para posicionar o ESP32.":state.experience==="vr"?"Arraste a placa e toque FIXAR ESP. Use PINO ESP para escolher o GPIO; toque num terminal nomeado do componente para ligar o fio."
+        +" Toque as letras com o indicador e use RUN para executar.":"Olhe para a bancada e faça uma pinça/clique para posicionar o ESP32.","ok"); updateButtons(); state.xrRenderer.setAnimationLoop(renderFrame);
       return true;
     }catch(error){
       console.error(error);
@@ -486,7 +530,7 @@ void loop() {
     }
   }
   async function exitAR(){ try{ await state.session?.end(); }catch{} }
-  function cleanup(){ state.hitSource?.cancel?.(); state.hitSource=null;state.grabbed=null;state.xrTouchStates.clear();state.xrActionTimes.clear();state.wiringMode=false;state.pendingTerminal=null;state.vrRuntime?.stop?.();state.vrRunning=false; state.session=null; state.refSpace=null; state.viewerSpace=null; state.lastHit=null; state.selected=null; state.xrRenderer?.setAnimationLoop(null); if(state.xrScene)window.CodaESPModel?.dispose(state.xrScene);state.xrRenderer?.dispose();state.xrRenderer=null;state.xrScene=null;state.xrCircuit=null;state.xrWires=null;state.xrTable=null;state.xrButtons=[];state.xrHands.clear();state.vrScreen=null;state.vrEditorRoot=null;state.vrKeyboardRoot=null;state.canvas?.remove(); state.canvas=null; state.gl=null; updateButtons(); }
+  function cleanup(){ state.hitSource?.cancel?.(); state.hitSource=null;state.grabbed=null;state.xrTouchStates.clear();state.xrActionTimes.clear();state.wiringMode=false;state.pendingTerminal=null;state.boardLocked=false;state.vrPinPanelOpen=false;state.vrRuntime?.stop?.();state.vrRunning=false; state.session=null; state.refSpace=null; state.viewerSpace=null; state.lastHit=null; state.selected=null; state.xrRenderer?.setAnimationLoop(null); if(state.xrScene)window.CodaESPModel?.dispose(state.xrScene);state.xrRenderer?.dispose();state.xrRenderer=null;state.xrScene=null;state.xrCircuit=null;state.xrWires=null;state.xrTable=null;state.xrButtons=[];state.xrPinButtons=[];state.xrHands.clear();state.vrScreen=null;state.vrEditorRoot=null;state.vrKeyboardRoot=null;state.vrPinPanel=null;state.vrLockButton=null;state.canvas?.remove(); state.canvas=null; state.gl=null; updateButtons(); }
   function onEnd(){ cleanup(); setStatus("Sessão encerrada","Você pode entrar novamente quando quiser.",state.supported?"ok":"warn"); }
 
   function clampMobile(value,min,max){return Math.max(min,Math.min(max,value));}

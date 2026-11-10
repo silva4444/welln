@@ -37,6 +37,18 @@ test("VR oferece rotação, ligação entre terminais e fios visíveis",()=>{
   assert.match(xr,/\"wire:toggle\"/);
   assert.match(xr,/FIACAO ATIVA • TOQUE EM DOIS TERMINAIS/);
   assert.match(xr,/function terminalNearHand\(tip\)/);
+  assert.match(xr,/function toggleVRPinPanel\(frame\)/);
+  assert.match(xr,/function selectVRPin\(name\)/);
+  assert.match(xr,/\[\.\.\.window\.CodaESPModel\.left,\.\.\.window\.CodaESPModel\.right\]/);
+  assert.match(xr,/function addVRComponentPinLabels\(part\)/);
+  assert.match(xr,/button\.userData\.xrDisabled=reserved/);
+});
+
+test("VR fixa a placa e impede que ela seja agarrada até liberar a posição",()=>{
+  assert.match(xr,/"board:lock"/);
+  assert.match(xr,/function toggleBoardLock\(\)/);
+  assert.match(xr,/object===state\.board&&state\.boardLocked/);
+  assert.match(html,/toque FIXAR ESP/);
 });
 
 test("VR permite trazer mesa e painéis até o usuário e mover os painéis",()=>{
