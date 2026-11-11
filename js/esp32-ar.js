@@ -11,7 +11,7 @@
     components: [], program: null, cube: null, frameHandle: null, device: "headset",
     grabbed: null, xrButtons: [], xrPinButtons: [], xrHands: new Map(), xrInputStates: new Map(), xrTouchStates:new Map(),xrActionTimes:new Map(),
     wiringMode:false, pendingTerminal:null, xrConnections:[], xrWires:null, xrWiresDirty:true, xrTable:null,
-    boardLocked:false, vrPinPanel:null, vrPinPanelOpen:false, vrLockButton:null, vrLitKey:null,
+    boardLocked:false, vrPinPanel:null, vrPinPanelOpen:false, vrLockButton:null, vrLitKey:null, vrProgramOpen:false, vrKeyboardOpen:false, vrSystemInput:null, vrDock:null,
     vrCode: "", vrRuntime: null, vrRunning: false, vrScreen: null, vrSerial: [], vrEditorMessage: "PRONTO PARA PROGRAMAR",
     mobile: { stream:null, fallback:false, placed:false, locked:false, x:50, y:58, scale:1, rotation:0, dragging:false, dragDx:0, dragDy:0, pinchDistance:0, renderer:null }
   };
@@ -88,6 +88,36 @@ void loop() {
   }
 
   function stopVRCode(){state.vrRuntime?.stop();state.vrRunning=false;state.vrEditorMessage="■ EXECUÇÃO INTERROMPIDA";refreshVRScreen();}
+  function toggleVRProgram(frame){
+    state.vrProgramOpen=!state.vrProgramOpen;
+    if(state.vrEditorRoot)state.vrEditorRoot.visible=state.vrProgramOpen;
+    if(!state.vrProgramOpen){state.vrKeyboardOpen=false;state.vrSystemInput?.blur();}
+    if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=state.vrProgramOpen&&state.vrKeyboardOpen&&!state.vrPinPanelOpen;
+    if(state.vrDock)state.vrDock.position.set(state.vrProgramOpen?1.25:0,state.vrProgramOpen?1.75:1.46,state.vrProgramOpen?-.85:-.75);
+    if(state.vrProgramOpen)bringPanelsNear(frame);
+    state.vrEditorMessage=state.vrProgramOpen?"EDITOR ABERTO • TOQUE DIGITAR":"EDITOR FECHADO • BANCADA LIVRE";refreshVRScreen();
+  }
+  function openVRCodeInput(){
+    if(!state.vrProgramOpen)return;
+    if(state.session?.isSystemKeyboardSupported){
+      if(!state.vrSystemInput){
+        const input=document.createElement("textarea");input.setAttribute("aria-label","Código do ESP32 no teclado do Quest");
+        Object.assign(input.style,{position:"fixed",left:"8px",top:"8px",width:"2px",height:"2px",opacity:"0.01",zIndex:"1"});
+        document.body.appendChild(input);state.vrSystemInput=input;
+      }
+      const input=state.vrSystemInput,original=state.vrCode;input.value="";
+      input.oninput=()=>{state.vrCode=original+input.value;state.vrEditorMessage="CÓDIGO RECEBIDO DO TECLADO QUEST";saveVRCode();};
+      input.focus();state.vrKeyboardOpen=false;if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=false;
+      state.vrEditorMessage="TECLADO QUEST ABERTO • DIGITE O CÓDIGO";
+    }else{state.vrKeyboardOpen=!state.vrKeyboardOpen;if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=state.vrKeyboardOpen&&!state.vrPinPanelOpen;
+      state.vrEditorMessage=state.vrKeyboardOpen?"TECLADO VR ABERTO • TOQUE NAS TECLAS":"TECLADO VR FECHADO";}
+    refreshVRScreen();
+  }
+  function toggleVRKeyboard(){
+    if(!state.vrProgramOpen)return;state.vrSystemInput?.blur();state.vrKeyboardOpen=!state.vrKeyboardOpen;
+    if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=state.vrKeyboardOpen&&!state.vrPinPanelOpen;
+    state.vrEditorMessage=state.vrKeyboardOpen?"TECLADO VR ABERTO • TOQUE NAS TECLAS":"TECLADO VR FECHADO";refreshVRScreen();
+  }
 
   function canvasTexture(width,height){
     const canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;
@@ -95,52 +125,57 @@ void loop() {
     return {canvas,ctx:canvas.getContext("2d"),texture};
   }
 
-  function labelMaterial(text,{width=512,height=128,bg="#132832",fg="#eaf7fa",accent="#b9ff3b",font=46}={}){
+  function labelMaterial(text,{width=512,height=128,bg="#231537",fg="#f4ecff",accent="#b68cff",font=46}={}){
     const view=canvasTexture(width,height),ctx=view.ctx;ctx.fillStyle=bg;ctx.fillRect(0,0,width,height);ctx.strokeStyle=accent;ctx.lineWidth=5;ctx.strokeRect(3,3,width-6,height-6);
     ctx.fillStyle=fg;ctx.font=`800 ${font}px Manrope,Arial`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(text,width/2,height/2);
     return new window.THREE.MeshBasicMaterial({map:view.texture,transparent:false});
   }
 
-  function vrButton(parent,label,action,x,y,w=.16,h=.065,color="#152b35",registry=state.xrButtons){
+  function vrButton(parent,label,action,x,y,w=.16,h=.065,color="#382451",registry=state.xrButtons){
     const T=window.THREE,button=new T.Mesh(new T.BoxGeometry(w,h,.022),new T.MeshStandardMaterial({color,roughness:.68,metalness:.08}));
     button.position.set(x,y,.025);button.userData.xrAction=action;button.userData.xrInteractive=true;
-    const face=new T.Mesh(new T.PlaneGeometry(w*.92,h*.78),labelMaterial(label,{width:384,height:112,bg:color,accent:action==="run"?"#b9ff3b":"#557984",font:40}));face.position.z=.012;button.add(face);parent.add(button);registry.push(button);return button;
+    const face=new T.Mesh(new T.PlaneGeometry(w*.92,h*.78),labelMaterial(label,{width:384,height:112,bg:color,accent:action==="run"?"#e0b4ff":"#916aba",font:40}));face.position.z=.012;button.add(face);parent.add(button);registry.push(button);return button;
   }
 
   function buildVREditor(scene){
-    const T=window.THREE,root=new T.Group();root.name="CODA_VR_EDITOR";root.position.set(-.56,1.40,-.88);root.rotation.y=.10;scene.add(root);
-    const panel=new T.Mesh(new T.BoxGeometry(1.62,1.50,.035),new T.MeshStandardMaterial({color:0x071218,roughness:.72,metalness:.12}));root.add(panel);
+    const T=window.THREE,dock=new T.Group();dock.name="CODA_VR_DOCK";dock.position.set(0,1.46,-.75);scene.add(dock);
+    const dockBack=new T.Mesh(new T.BoxGeometry(1.46,.16,.035),new T.MeshStandardMaterial({color:0x2c1945,roughness:.68}));dock.add(dockBack);
+    [["PROGRAMAR","program:toggle",-.50,.0,.31],["PINOS","pin:panel",-.17,.0,.22],["FIAÇÃO","wire:toggle",.11,.0,.23],["FIXAR ESP","board:lock",.45,.0,.29]].forEach(([label,action,x,y,w])=>vrButton(dock,label,action,x,y,w,.075,"#513278"));state.vrDock=dock;
+    const root=new T.Group();root.name="CODA_VR_EDITOR";root.position.set(-.56,1.40,-.88);root.rotation.y=.10;root.visible=false;scene.add(root);
+    const panel=new T.Mesh(new T.BoxGeometry(1.62,1.68,.035),new T.MeshStandardMaterial({color:0x251738,roughness:.72,metalness:.12}));root.add(panel);
     const screenData=canvasTexture(1280,620),screen=new T.Mesh(new T.PlaneGeometry(1.5,.70),new T.MeshBasicMaterial({map:screenData.texture}));screen.position.set(0,.14,.02);root.add(screen);
     state.vrScreen=screenData;
-    [["BLINK","template:blink",-.60,-.32,.18],["HIGH","template:high",-.40,-.32,.16],["LOW","template:low",-.22,-.32,.15],["+ LED","add:led",-.04,-.32,.17],["+ R","add:resistor",.16,-.32,.17],["▶ RUN","run",.39,-.32,.19],["■ STOP","stop",.60,-.32,.18]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.065,action==="run"?"#416b19":"#15303b"));
-    [["↶ GIRAR","rotate:left",-.65,-.45,.18],["↷ GIRAR","rotate:right",-.44,-.45,.18],["FIAÇÃO","wire:toggle",-.22,-.45,.21],["APAGAR FIOS","wire:clear",.03,-.45,.23],["TRAZER MESA","bring:table",.33,-.45,.27],["PAINÉIS PERTO","bring:keyboard",.62,-.45,.30]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.062,action==="wire:toggle"?"#284c3a":"#15303b"));
-    state.vrLockButton=vrButton(root,"FIXAR ESP","board:lock",-.30,-.58,.30,.064,"#31523a");
-    vrButton(root,"PINO ESP","pin:panel",.15,-.58,.28,.064,"#34526a");
-    vrButton(root,"LIMPAR CÓDIGO","template:clear",.55,-.58,.28,.064,"#453943");
-    [["DESFAZER FIO","wire:undo",-.55,-.70,.30],["+ BOTÃO","add:button",-.15,-.70,.25],["+ SENSOR","add:sensor",.23,-.70,.27]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.064,"#263d49"));
+    [["BLINK","template:blink",-.60,-.32,.18],["HIGH","template:high",-.40,-.32,.16],["LOW","template:low",-.22,-.32,.15],["+ LED","add:led",-.04,-.32,.17],["+ R","add:resistor",.16,-.32,.17],["▶ RUN","run",.39,-.32,.19],["■ STOP","stop",.60,-.32,.18]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.065,action==="run"?"#70419b":"#43295f"));
+    [["↶ GIRAR","rotate:left",-.65,-.45,.18],["↷ GIRAR","rotate:right",-.44,-.45,.18],["FIAÇÃO","wire:toggle",-.22,-.45,.21],["APAGAR FIOS","wire:clear",.03,-.45,.23],["TRAZER MESA","bring:table",.33,-.45,.27],["PAINÉIS PERTO","bring:keyboard",.62,-.45,.30]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.062,action==="wire:toggle"?"#5d367a":"#43295f"));
+    state.vrLockButton=vrButton(root,"FIXAR ESP","board:lock",-.30,-.58,.30,.064,"#513278");
+    vrButton(root,"TECLADO VR","code:virtual",-.67,-.58,.23,.064,"#70419b");
+    vrButton(root,"PINO ESP","pin:panel",.15,-.58,.28,.064,"#56377e");
+    vrButton(root,"DIGITAR","code:input",.55,-.58,.28,.064,"#70419b");
+    [["DESFAZER FIO","wire:undo",-.55,-.70,.30],["+ BOTÃO","add:button",-.15,-.70,.25],["+ SENSOR","add:sensor",.23,-.70,.27],["LIMPAR","template:clear",.58,-.70,.25]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.064,"#422b60"));
+    vrButton(root,"MONTAR EXEMPLO","circuit:example",0,-.80,.42,.060,"#63408d");
 
-    const keyboard=new T.Group();keyboard.name="CODA_VR_KEYBOARD";keyboard.position.set(.60,1.12,-.78);keyboard.rotation.set(-.17,-.12,0);scene.add(keyboard);
-    const base=new T.Mesh(new T.BoxGeometry(1.22,.66,.04),new T.MeshStandardMaterial({color:0x09171e,roughness:.75,metalness:.1}));keyboard.add(base);
+    const keyboard=new T.Group();keyboard.name="CODA_VR_KEYBOARD";keyboard.position.set(.60,1.12,-.78);keyboard.rotation.set(-.17,-.12,0);keyboard.visible=false;scene.add(keyboard);
+    const base=new T.Mesh(new T.BoxGeometry(1.22,.66,.04),new T.MeshStandardMaterial({color:0x2b1b41,roughness:.75,metalness:.1}));keyboard.add(base);
     const rows=["1234567890","qwertyuiop","asdfghjkl","zxcvbnm","\"'!+-*/%:#[]"];
-    rows.forEach((chars,row)=>{const keyW=chars.length>10?.079:.098,gap=.011,total=chars.length*(keyW+gap)-gap;[...chars].forEach((char,i)=>vrButton(keyboard,char.toUpperCase(),`key:${char}`,-total/2+keyW/2+i*(keyW+gap),.255-row*.105,keyW,.074,"#132933"));});
-    vrButton(keyboard,"SPACE","space",-.35,-.275,.28,.075,"#173642");vrButton(keyboard,"ENTER","enter",-.03,-.275,.24,.075,"#173642");vrButton(keyboard,"⌫", "backspace",.22,-.275,.16,.075,"#43303a");vrButton(keyboard,"▶ RUN", "run",.42,-.275,.18,.075,"#416b19");
+    rows.forEach((chars,row)=>{const keyW=chars.length>10?.079:.098,gap=.011,total=chars.length*(keyW+gap)-gap;[...chars].forEach((char,i)=>vrButton(keyboard,char.toUpperCase(),`key:${char}`,-total/2+keyW/2+i*(keyW+gap),.255-row*.105,keyW,.074,"#483066"));});
+    vrButton(keyboard,"SPACE","space",-.35,-.275,.28,.075,"#62417e");vrButton(keyboard,"ENTER","enter",-.03,-.275,.24,.075,"#62417e");vrButton(keyboard,"⌫", "backspace",.22,-.275,.16,.075,"#65405e");vrButton(keyboard,"▶ RUN", "run",.42,-.275,.18,.075,"#70419b");
     const pinPanel=new T.Group();pinPanel.name="CODA_VR_PIN_PICKER";pinPanel.position.set(.72,1.42,-.92);pinPanel.rotation.y=-.12;pinPanel.visible=false;scene.add(pinPanel);
-    const pinBack=new T.Mesh(new T.BoxGeometry(1.28,1.12,.035),new T.MeshStandardMaterial({color:0x071218,roughness:.72,metalness:.12}));pinPanel.add(pinBack);
-    const pinHeader=new T.Mesh(new T.PlaneGeometry(.94,.15),labelMaterial("PINOS DO ESP32",{width:900,height:120,bg:"#10242d",accent:"#b9ff3b",font:54}));pinHeader.position.set(-.13,.46,.022);pinPanel.add(pinHeader);
-    vrButton(pinPanel,"FECHAR","pin:close",.49,.46,.20,.065,"#56363a",state.xrPinButtons);
+    const pinBack=new T.Mesh(new T.BoxGeometry(1.28,1.12,.035),new T.MeshStandardMaterial({color:0x28183d,roughness:.72,metalness:.12}));pinPanel.add(pinBack);
+    const pinHeader=new T.Mesh(new T.PlaneGeometry(.94,.15),labelMaterial("PINOS DO ESP32",{width:900,height:120,bg:"#382450",accent:"#d4a4ff",font:54}));pinHeader.position.set(-.13,.46,.022);pinPanel.add(pinHeader);
+    vrButton(pinPanel,"FECHAR","pin:close",.49,.46,.20,.065,"#65405e",state.xrPinButtons);
     const pinNames=[...window.CodaESPModel.left,...window.CodaESPModel.right];
-    pinNames.forEach((name,index)=>{const col=index%4,row=Math.floor(index/4),x=-.445+col*.30,y=.32-row*.085,reserved=window.CodaESPModel.reserved.has(name),label=reserved?`${window.CodaESPModel.label(name)} · FLASH`:window.CodaESPModel.label(name),button=vrButton(pinPanel,label,reserved?"pin:locked":`pin:select:${name}`,x,y,.27,.067,reserved?"#313840":"#17313d",state.xrPinButtons);button.userData.xrDisabled=reserved;});
+    pinNames.forEach((name,index)=>{const col=index%4,row=Math.floor(index/4),x=-.445+col*.30,y=.32-row*.085,reserved=window.CodaESPModel.reserved.has(name),label=reserved?`${window.CodaESPModel.label(name)} · FLASH`:window.CodaESPModel.label(name),button=vrButton(pinPanel,label,reserved?"pin:locked":`pin:select:${name}`,x,y,.27,.067,reserved?"#313840":"#442b65",state.xrPinButtons);button.userData.xrDisabled=reserved;});
     state.vrEditorRoot=root;state.vrKeyboardRoot=keyboard;state.vrPinPanel=pinPanel;refreshVRScreen();
   }
 
   function refreshVRScreen(){
     const view=state.vrScreen;if(!view)return;const {ctx,canvas,texture}=view;
-    ctx.fillStyle="#061117";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#10242d";ctx.fillRect(0,0,canvas.width,76);
+    ctx.fillStyle="#190e29";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#35204f";ctx.fillRect(0,0,canvas.width,76);
     ctx.fillStyle="#e6f4f8";ctx.font="700 34px DM Mono,monospace";ctx.fillText("sketch.ino • EDITOR VR",32,49);
-    ctx.fillStyle=state.vrRunning?"#b9ff3b":"#84a2ad";ctx.textAlign="right";ctx.fillText(state.vrRunning?"● EXECUTANDO":"● PRONTO",canvas.width-32,49);ctx.textAlign="left";
+    ctx.fillStyle=state.vrRunning?"#d4a4ff":"#b9a0ce";ctx.textAlign="right";ctx.fillText(state.vrRunning?"● EXECUTANDO":"● PRONTO",canvas.width-32,49);ctx.textAlign="left";
     const lines=state.vrCode.split("\n"),visible=lines.slice(-12);ctx.font="29px DM Mono,monospace";
     visible.forEach((line,index)=>{const y=110+index*36;ctx.fillStyle="#54717c";ctx.fillText(String(lines.length-visible.length+index+1).padStart(2," "),22,y);ctx.fillStyle=/(void|pinMode|digitalWrite|delay|Serial)/.test(line)?"#8ee4ff":"#e8f2f5";ctx.fillText(line.slice(0,65),72,y,1160);});
-    ctx.fillStyle="#10242d";ctx.fillRect(0,540,canvas.width,80);ctx.fillStyle="#b9ff3b";ctx.font="23px DM Mono,monospace";ctx.fillText(state.vrEditorMessage,28,568,1220);
+    ctx.fillStyle="#35204f";ctx.fillRect(0,540,canvas.width,80);ctx.fillStyle="#d4a4ff";ctx.font="23px DM Mono,monospace";ctx.fillText(state.vrEditorMessage,28,568,1220);
     ctx.fillStyle="#9eb6be";ctx.font="22px DM Mono,monospace";ctx.fillText(`SERIAL: ${state.vrSerial.at(-1)||"aguardando execução"}`.slice(0,76),28,602,1220);texture.needsUpdate=true;
   }
 
@@ -159,6 +194,10 @@ void loop() {
     if(action==="bring:keyboard")return bringPanelsNear(frame);
     if(action==="board:lock")return toggleBoardLock();
     if(action==="pin:panel")return toggleVRPinPanel(frame);
+    if(action==="program:toggle")return toggleVRProgram(frame);
+    if(action==="code:input")return openVRCodeInput();
+    if(action==="code:virtual")return toggleVRKeyboard();
+    if(action==="circuit:example")return loadVRExample();
     if(action==="pin:close")return closeVRPinPanel();
     if(action.startsWith("pin:select:"))return selectVRPin(action.slice("pin:select:".length));
     if(action==="template:blink")state.vrCode=VR_DEMO;else if(action==="template:high")state.vrCode=VR_HIGH;else if(action==="template:low")state.vrCode=VR_LOW;else if(action==="template:clear")state.vrCode="";
@@ -197,15 +236,15 @@ void loop() {
     const canvas=document.createElement("canvas");canvas.id="xrCanvas";
     const renderer=new T.WebGLRenderer({canvas,alpha:true,antialias:true});
     renderer.outputEncoding=T.sRGBEncoding;renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType("local-floor");
-    const scene=new T.Scene();scene.add(new T.HemisphereLight(0xe5f2ff,0x26333d,1.8));
+    const scene=new T.Scene();scene.add(new T.HemisphereLight(0xe8d6ff,0x261036,1.8));
     const light=new T.DirectionalLight(0xffffff,2);light.position.set(1,3,2);scene.add(light);
     const board=model.createBoard();scene.add(board);
     const reticle=new T.Mesh(new T.RingGeometry(.025,.029,32),new T.MeshBasicMaterial({color:0xb5ed9e,side:T.DoubleSide}));reticle.rotation.x=-Math.PI/2;reticle.visible=false;scene.add(reticle);
     const room=new T.Group();
-    const floor=new T.Mesh(new T.PlaneGeometry(8,8),new T.MeshStandardMaterial({color:0x172630,roughness:.9}));floor.rotation.x=-Math.PI/2;room.add(floor);
-    const table=new T.Mesh(new T.BoxGeometry(1.8,.08,1),new T.MeshStandardMaterial({color:0x33434a,roughness:.72}));table.position.set(0,.72,-1);room.add(table);
-    const back=new T.Mesh(new T.PlaneGeometry(8,3),new T.MeshStandardMaterial({color:0x0c1820,roughness:1}));back.position.set(0,1.5,-3);room.add(back);
-    const title=new T.Mesh(new T.PlaneGeometry(2.35,.34),labelMaterial("CODA • LABORATÓRIO ESP32 VR",{width:1024,height:150,bg:"#0c1820",accent:"#b9ff3b",font:54}));title.position.set(0,2.28,-2.94);room.add(title);
+    const floor=new T.Mesh(new T.PlaneGeometry(8,8),new T.MeshStandardMaterial({color:0x1c112d,roughness:.9}));floor.rotation.x=-Math.PI/2;room.add(floor);
+    const table=new T.Mesh(new T.BoxGeometry(1.8,.08,1),new T.MeshStandardMaterial({color:0x493366,roughness:.72}));table.position.set(0,.72,-1);room.add(table);
+    const back=new T.Mesh(new T.PlaneGeometry(8,3),new T.MeshStandardMaterial({color:0x160c25,roughness:1}));back.position.set(0,1.5,-3);room.add(back);
+    const title=new T.Mesh(new T.PlaneGeometry(2.35,.34),labelMaterial("CODA • LABORATÓRIO ESP32 VR",{width:1024,height:150,bg:"#27163e",accent:"#b68cff",font:54}));title.position.set(0,2.28,-2.94);room.add(title);
     scene.add(room);
     const wires=new T.Group();wires.name="CODA_VR_WIRES";scene.add(wires);
     Object.assign(state,{canvas,gl:renderer.getContext(),xrRenderer:renderer,xrScene:scene,xrCamera:new T.PerspectiveCamera(),xrBoard:board,xrParts:new Map(),xrReticle:reticle,xrRoom:room,xrTable:table,xrWires:wires});
@@ -387,18 +426,21 @@ void loop() {
   function toggleWiring(){state.wiringMode=!state.wiringMode;state.pendingTerminal=null;state.vrEditorMessage=state.wiringMode?"FIACAO ATIVA • TOQUE EM DOIS TERMINAIS":"FIACAO PAUSADA";refreshVRScreen();}
   function toggleBoardLock(){
     state.boardLocked=!state.boardLocked;
-    const label=state.boardLocked?"LIBERAR ESP":"FIXAR ESP",face=state.vrLockButton?.children?.[0];
-    if(face){const old=face.material;face.material=labelMaterial(label,{width:384,height:112,bg:state.boardLocked?"#5a381e":"#31523a",accent:"#ffc45b",font:40});old?.map?.dispose?.();old?.dispose?.();state.vrLockButton.material.color.set(state.boardLocked?"#75502c":"#31523a");}
+    const label=state.boardLocked?"LIBERAR ESP":"FIXAR ESP";
+    for(const button of state.xrButtons.filter(item=>item.userData.xrAction==="board:lock")){
+      const face=button.children[0],old=face?.material;if(!face)continue;
+      face.material=labelMaterial(label,{width:384,height:112,bg:state.boardLocked?"#664183":"#513278",accent:"#dbb0ff",font:40});old?.map?.dispose?.();old?.dispose?.();button.material.color.set(state.boardLocked?"#664183":"#513278");
+    }
     state.vrEditorMessage=state.boardLocked?"ESP32 FIXO NA BANCADA • TOQUE LIBERAR PARA MOVER":"ESP32 LIBERADO • ARRASTE PARA POSICIONAR";refreshVRScreen();
   }
   function toggleVRPinPanel(frame){
     state.vrPinPanelOpen=!state.vrPinPanelOpen;if(state.vrPinPanel)state.vrPinPanel.visible=state.vrPinPanelOpen;
-    if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=!state.vrPinPanelOpen;
+    if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=state.vrProgramOpen&&state.vrKeyboardOpen&&!state.vrPinPanelOpen;
     state.pinPanelReadyAt=performance.now()+320;
     if(state.vrPinPanelOpen)bringPinPanelNear(frame);
     state.vrEditorMessage=state.vrPinPanelOpen?"PINOS ABERTOS • ESCOLHA UM OU TOQUE FECHAR":"PINOS FECHADOS • TECLADO DISPONÍVEL";refreshVRScreen();
   }
-  function closeVRPinPanel(){state.vrPinPanelOpen=false;if(state.vrPinPanel)state.vrPinPanel.visible=false;if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=true;state.vrEditorMessage="PINOS FECHADOS • TECLADO DISPONÍVEL";refreshVRScreen();}
+  function closeVRPinPanel(){state.vrPinPanelOpen=false;if(state.vrPinPanel)state.vrPinPanel.visible=false;if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=state.vrProgramOpen&&state.vrKeyboardOpen;state.vrEditorMessage="PINOS FECHADOS • TOQUE PROGRAMAR";refreshVRScreen();}
   function bringPinPanelNear(frame){
     const pose=frame?.getViewerPose?.(state.refSpace),m=pose?.transform?.matrix;if(!m||!state.vrPinPanel)return;
     const fx=-m[8],fz=-m[10],len=Math.hypot(fx,fz)||1,rx=m[0],rz=m[2];state.vrPinPanel.position.set(m[12]+fx/len*.82+rx*.42,m[13]-.04,m[14]+fz/len*.82+rz*.42);state.vrPinPanel.rotation.set(0,Math.atan2(-fx/len,-fz/len),0);
@@ -406,7 +448,7 @@ void loop() {
   function selectVRPin(name){
     if(!window.CodaESPModel.pinPoint(name)||window.CodaESPModel.reserved.has(name)){state.vrEditorMessage=`PINO INDISPONÍVEL: ${name}`;refreshVRScreen();return;}
     if(!state.wiringMode){state.wiringMode=true;state.pendingTerminal=null;}
-    for(const button of state.xrPinButtons)if(button.userData.xrAction?.startsWith("pin:select:"))button.material.color.set(button.userData.xrAction===`pin:select:${name}`?"#4a7231":"#17313d");
+    for(const button of state.xrPinButtons)if(button.userData.xrAction?.startsWith("pin:select:"))button.material.color.set(button.userData.xrAction===`pin:select:${name}`?"#7651aa":"#442b65");
     connectTerminal(`ESP32:${name}`);
     if(state.wiringMode)state.vrEditorMessage=`ESP32 ${window.CodaESPModel.label(name)} SELECIONADO • TOQUE NO PIN NOMEADO DO COMPONENTE`;
     refreshVRScreen();
@@ -443,7 +485,7 @@ void loop() {
     for(const root of [state.vrEditorRoot,state.vrKeyboardRoot,state.vrPinPanel]){
       if(!root?.visible)continue;const local=root.worldToLocal(point.clone());
       const width=root===state.vrEditorRoot?1.62:root===state.vrKeyboardRoot?1.22:1.28;
-      const height=root===state.vrEditorRoot ? 1.50 : root===state.vrKeyboardRoot ? .66 : 1.12;
+      const height=root===state.vrEditorRoot ? 1.68 : root===state.vrKeyboardRoot ? .66 : 1.12;
       if(Math.abs(local.x)<width/2&&Math.abs(local.y)<height/2&&local.z>-.03&&local.z<.10)return {root,point};
     }return null;
   }
@@ -459,6 +501,7 @@ void loop() {
     const fx=-matrix[8],fz=-matrix[10],length=Math.hypot(fx,fz)||1,forwardX=fx/length,forwardZ=fz/length,rightX=matrix[0],rightZ=matrix[2],px=matrix[12],py=matrix[13],pz=matrix[14],yaw=Math.atan2(-forwardX,-forwardZ);
     if(state.vrEditorRoot){state.vrEditorRoot.position.set(px+forwardX*.78-rightX*.42,py-.04,pz+forwardZ*.78-rightZ*.42);state.vrEditorRoot.rotation.set(0,yaw,0);}
     if(state.vrKeyboardRoot){state.vrKeyboardRoot.position.set(px+forwardX*.62+rightX*.43,py-.34,pz+forwardZ*.62+rightZ*.43);state.vrKeyboardRoot.rotation.set(-.12,yaw,0);}
+    if(state.vrDock&&state.vrProgramOpen)state.vrDock.position.set(px+forwardX*.80+rightX*.90,py+.28,pz+forwardZ*.80+rightZ*.90);
     if(state.vrPinPanelOpen)bringPinPanelNear(frame);
   }
   function onSelectStart(event){
@@ -500,6 +543,13 @@ void loop() {
   }
 
   function arrangeComponents(){ if(!state.placed) return; state.components.forEach((o,i)=>{ if(o.userPlaced)return; const vr=state.experience==="vr";o.x=state.board.x+(vr ? .27 : .10)+(i%2)*(vr ? .18 : .055);o.y=state.board.y;o.z=state.board.z+(vr ? 0 : -.03)+Math.floor(i/2)*(vr ? .14 : .06); }); }
+  function loadVRExample(){
+    const example=window.CodaARLabCore?.makeExample?.(2);if(!example)return;
+    state.vrRuntime?.stop?.();state.components=example.components.map(item=>({id:item.id,kind:item.type,pin:item.pin,ohms:item.ohms,x:0,y:.78,z:-1,userPlaced:false}));
+    arrangeComponents();state.xrConnections=example.wires.map(pair=>[...pair]);state.vrCode=example.code;
+    state.pendingTerminal=null;state.wiringMode=false;state.vrLitKey=null;state.xrWiresDirty=true;
+    renderComponentList();state.vrEditorMessage="EXEMPLO PRONTO • TOQUE RUN PARA SIMULAR";saveVRCode();
+  }
   function addComponent(kind){ const names={led:"LED",resistor:"R",button:"BTN",sensor:"HC"},id=`${names[kind]||"P"}${state.components.filter(x=>x.kind===kind).length+1}`; state.components.push({id,kind,pin:kind==="led"?"GPIO2":undefined,x:state.board.x+0.27,y:state.board.y,z:state.board.z,connected:false,userPlaced:false}); arrangeComponents();state.xrWiresDirty=true;state.vrLitKey=null; renderComponentList(); state.vrEditorMessage=`${id} ADICIONADO • AGARRE COM A MÃO`;refreshVRScreen();toast(`${kind} adicionado ao laboratório`); }
   function renderComponentList(){ const el=$("#arComponentList"); if(el) el.innerHTML=state.components.length?state.components.map(x=>`<span>${x.kind==="led"?"💡":"▰"} ${x.id}</span>`).join(""):"<small>Nenhum componente adicionado.</small>"; }
 
@@ -537,14 +587,14 @@ void loop() {
       const sessionPromise=navigator.xr.requestSession(sessionType,opts);
       const session=await sessionPromise; state.session=session; state.supported=true; state.checked=true;
       await state.xrRenderer.xr.setSession(session);
-      state.xrScene.background=state.experience==="vr"?new window.THREE.Color(0x071018):null;
+    state.xrScene.background=state.experience==="vr"?new window.THREE.Color(0x140a23):null;
       if(state.xrRoom)state.xrRoom.visible=state.experience==="vr";
       if(state.experience==="vr"){
         state.placed=true;Object.assign(state.board,{x:0,y:.78,z:-1});
         if(!state.components.length){addComponent("led");addComponent("resistor");}
         arrangeComponents();
         try{state.vrCode=localStorage.getItem("coda-vr-sketch-v146")??$("#espFirmwareCode")?.value??VR_DEMO;}catch{state.vrCode=VR_DEMO;}
-        state.boardLocked=false;state.vrEditorMessage="PRONTO • ARRASTE A PLACA E TOQUE FIXAR ESP";refreshVRScreen();
+        state.boardLocked=false;state.vrProgramOpen=false;state.vrKeyboardOpen=false;state.vrEditorMessage="PRONTO • TOQUE PROGRAMAR PARA ABRIR O EDITOR";refreshVRScreen();
       }
       if(state.xrCircuitSnapshot)importPrototype();
       state.refSpace=state.xrRenderer.xr.getReferenceSpace(); state.viewerSpace=await session.requestReferenceSpace("viewer");
@@ -563,7 +613,7 @@ void loop() {
     }
   }
   async function exitAR(){ try{ await state.session?.end(); }catch{} }
-  function cleanup(){ state.hitSource?.cancel?.(); state.hitSource=null;state.grabbed=null;state.xrTouchStates.clear();state.xrActionTimes.clear();state.wiringMode=false;state.pendingTerminal=null;state.boardLocked=false;state.vrPinPanelOpen=false;state.vrRuntime?.stop?.();state.vrRuntime=null;state.vrRunning=false;state.hardware=null;state.vrHardwareKey=null;state.vrLitKey=null;state.lastWireRefresh=0; state.session=null; state.refSpace=null; state.viewerSpace=null; state.lastHit=null; state.selected=null; state.xrRenderer?.setAnimationLoop(null); if(state.xrScene)window.CodaESPModel?.dispose(state.xrScene);state.xrRenderer?.dispose();state.xrRenderer=null;state.xrScene=null;state.xrCircuit=null;state.xrWires=null;state.xrTable=null;state.xrButtons=[];state.xrPinButtons=[];state.xrHands.clear();state.vrScreen=null;state.vrEditorRoot=null;state.vrKeyboardRoot=null;state.vrPinPanel=null;state.vrLockButton=null;state.canvas?.remove(); state.canvas=null; state.gl=null; updateButtons(); }
+  function cleanup(){ state.hitSource?.cancel?.(); state.hitSource=null;state.grabbed=null;state.xrTouchStates.clear();state.xrActionTimes.clear();state.wiringMode=false;state.pendingTerminal=null;state.boardLocked=false;state.vrPinPanelOpen=false;state.vrProgramOpen=false;state.vrKeyboardOpen=false;state.vrSystemInput?.remove();state.vrSystemInput=null;state.vrRuntime?.stop?.();state.vrRuntime=null;state.vrRunning=false;state.hardware=null;state.vrHardwareKey=null;state.vrLitKey=null;state.lastWireRefresh=0; state.session=null; state.refSpace=null; state.viewerSpace=null; state.lastHit=null; state.selected=null; state.xrRenderer?.setAnimationLoop(null); if(state.xrScene)window.CodaESPModel?.dispose(state.xrScene);state.xrRenderer?.dispose();state.xrRenderer=null;state.xrScene=null;state.xrCircuit=null;state.xrWires=null;state.xrTable=null;state.xrButtons=[];state.xrPinButtons=[];state.xrHands.clear();state.vrScreen=null;state.vrEditorRoot=null;state.vrKeyboardRoot=null;state.vrPinPanel=null;state.vrDock=null;state.vrLockButton=null;state.canvas?.remove(); state.canvas=null; state.gl=null; updateButtons(); }
   function onEnd(){ cleanup(); setStatus("Sessão encerrada","Você pode entrar novamente quando quiser.",state.supported?"ok":"warn"); }
 
   function clampMobile(value,min,max){return Math.max(min,Math.min(max,value));}

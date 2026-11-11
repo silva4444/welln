@@ -88,7 +88,9 @@ test("VR inclui editor Arduino, teclado virtual e execução sem tela externa",(
   assert.match(xr,/function buttonAtFinger\(tip\)/);
   assert.match(xr,/function updateHandTouches\(frame\)/);
   assert.match(xr,/button&&button!==touch\.button\)activateVRAction/);
-  assert.match(html,/Toque as letras com o indicador, como num teclado/);
+  assert.match(html,/Toque PROGRAMAR/);
+  assert.match(xr,/isSystemKeyboardSupported/);
+  assert.match(xr,/keyboard\.visible=false|keyboard\.rotation\.set\([^\n]+keyboard\.visible=false/);
 });
 
 test("abas de turma usam semântica e navegação por teclado",()=>{
