@@ -1305,14 +1305,22 @@ async function applyStudent(student){
   document.body.dataset.portal=student.role.toLowerCase();
   if(studentMode){loadStudentWorkspace();await hydrateServerWorkspace()}registerLearningUser(student);trackLearningEvent("login",{});
   const first=student.name.trim().split(/\s+/)[0];$("#profileName").textContent=student.name;$("#profileAvatar").textContent=studentInitials(student.name);$("#studentGreeting").textContent=teacher?`Olá, Prof. ${first}`:admin?`Olá, ${first}`:`Olá, ${first}`;$("#profileXp").textContent=teacher?"Professor • Gestão":admin?"Administrador • Instituição":"0 XP • Explorador";
-  $("#loginScreen").classList.add("hidden");$("#appShell").classList.remove("is-locked");document.body.classList.remove("login-open","teacher-login","admin-login");document.body.classList.toggle("is-teacher",teacher);document.body.classList.toggle("is-admin",admin);
+  $("#aboutLanding").hidden=true;$("#loginScreen").classList.add("hidden");$("#appShell").classList.remove("is-locked");document.body.classList.remove("login-open","teacher-login","admin-login");document.body.classList.toggle("is-teacher",teacher);document.body.classList.toggle("is-admin",admin);
   $$(".teacher-navigation").forEach(item=>item.hidden=!teacher);$$(".admin-navigation").forEach(item=>item.hidden=!admin);$$(".student-navigation").forEach(item=>item.hidden=!studentMode);
   if(admin){await window.CodaAdmin?.boot?.(student);dispatchCoda("user",{user:student});return}
   if(teacher){renderTeacherArea();showTeacherSection("overview");await window.CodaPlatform?.boot?.(student);dispatchCoda("user",{user:student});return}
   updateDashboard();renderStudentHub();renderCourses();renderPosts();goToView("inicio");await window.CodaPlatform?.boot?.(student);await bootTutor();if($("#curso").classList.contains("active"))renderCourse();dispatchCoda("user",{user:student});
 }
-function lockStudentArea(){$("#loginScreen").classList.remove("hidden");$("#appShell").classList.add("is-locked");document.body.classList.add("login-open");setTimeout(()=>(loginMode==="register"?$("#loginName"):$("#loginEmail")).focus(),80)}
+function showLoginFromAbout(){
+  $("#aboutLanding").hidden=true;$("#loginScreen").classList.remove("hidden");$("#appShell").classList.add("is-locked");document.body.classList.add("login-open");
+  setTimeout(()=>(loginMode==="register"?$("#loginName"):$("#loginEmail")).focus(),80);
+}
+function lockStudentArea(){
+  $("#aboutLanding").hidden=false;$("#loginScreen").classList.add("hidden");$("#appShell").classList.add("is-locked");document.body.classList.add("login-open");
+}
 async function bindStudentAccess(){
+  $("#landingLoginButton").addEventListener("click",showLoginFromAbout);
+  $("#backToAbout").addEventListener("click",lockStudentArea);
   let activeUser=null;try{activeUser=(await CodaAPI.me()).user}catch{showToast("Abra a coda pelo INICIAR-CODA.bat para conectar ao servidor.")}
   if(activeUser)await applyStudent(activeUser);else{lockStudentArea();setLoginPortal("Aluno")}
   $$('[data-login-portal]').forEach(button=>button.onclick=()=>setLoginPortal(button.dataset.loginPortal));
@@ -1331,15 +1339,14 @@ function applyAccessibility(){const settings=state.accessibility;document.docume
 function setAccessibilityPanel(open){$("#accessibilityPanel").hidden=!open;$("#accessibilityButton").setAttribute("aria-expanded",String(open));$("#loginAccessibilityButton").setAttribute("aria-expanded",String(open));if(open)setTimeout(()=>$("[data-font-size]",$("#accessibilityPanel")).focus(),30)}
 function registerOfflineSupport(){if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(error=>console.warn("Falha ao registrar service worker:",error?.message||error))}
 function bindAccountSecurity(){
-  const passwordDialog=$("#changePasswordDialog"),aboutDialog=$("#aboutDialog"),form=$("#changePasswordForm"),errorBox=$("#changePasswordError");
+  const passwordDialog=$("#changePasswordDialog"),form=$("#changePasswordForm"),errorBox=$("#changePasswordError");
   let previousFocus=null;
   const open=(dialog,focus)=>{previousFocus=document.activeElement;dialog.hidden=false;$("#sidebar").classList.remove("is-open");$("#backdrop").classList.remove("is-open");focus.focus()};
   const close=dialog=>{dialog.hidden=true;if(dialog===passwordDialog){form.reset();errorBox.hidden=true;errorBox.textContent=""}previousFocus?.focus?.()};
   $$(".open-password").forEach(button=>button.addEventListener("click",()=>open(passwordDialog,$("#currentPassword"))));
-  $$(".open-about").forEach(button=>button.addEventListener("click",()=>open(aboutDialog,$("#closeAboutDialog"))));
-  [["#closePasswordDialog",passwordDialog],["#cancelPasswordDialog",passwordDialog],["#closeAboutDialog",aboutDialog],["#aboutDone",aboutDialog]].forEach(([selector,dialog])=>$(selector).addEventListener("click",()=>close(dialog)));
-  [passwordDialog,aboutDialog].forEach(dialog=>dialog.addEventListener("click",event=>{if(event.target===dialog)close(dialog)}));
-  document.addEventListener("keydown",event=>{if(event.key!=="Escape")return;if(!passwordDialog.hidden){close(passwordDialog);event.stopPropagation()}else if(!aboutDialog.hidden){close(aboutDialog);event.stopPropagation()}});
+  [["#closePasswordDialog",passwordDialog],["#cancelPasswordDialog",passwordDialog]].forEach(([selector,dialog])=>$(selector).addEventListener("click",()=>close(dialog)));
+  passwordDialog.addEventListener("click",event=>{if(event.target===passwordDialog)close(passwordDialog)});
+  document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!passwordDialog.hidden){close(passwordDialog);event.stopPropagation()}});
   form.addEventListener("submit",async event=>{
     event.preventDefault();errorBox.hidden=true;errorBox.textContent="";
     const currentPassword=$("#currentPassword").value,newPassword=$("#newPassword").value,confirmation=$("#confirmNewPassword").value;
