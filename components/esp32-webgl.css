@@ -257,3 +257,16 @@
 .mobile-ar-fine-axes {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding-top:9px}
 .mobile-ar-fine-axes label {display:grid;gap:5px;font-size:11px;color:#cfe6e8}
 .mobile-ar-fine-axes input[type="range"] {width:100%}
+
+
+/* Portas dos componentes 3D: alvos independentes para toque, mouse e teclado. */
+.circuit-projected-controls .component-pin-label{
+ z-index:6;min-width:54px;min-height:42px;padding:7px 9px;border:2px solid #f4ce72;
+ border-radius:9px;background:#102e3f;color:#fff;text-align:center;
+ font:800 12px/1.15 "DM Mono",monospace;touch-action:none;user-select:none;
+ -webkit-tap-highlight-color:transparent;box-shadow:0 5px 14px #000b;
+}
+.circuit-projected-controls .component-pin-label:hover,
+.circuit-projected-controls .component-pin-label:focus-visible{background:#255266;border-color:#fff;outline:2px solid #b9ff3b;outline-offset:1px}
+.circuit-projected-controls .component-pin-label.selected{background:#486719;border-color:#b9ff3b;outline:3px solid #b9ff3b;outline-offset:1px}
+.circuit-projected-controls .piece-handle{z-index:7;min-height:36px;padding:7px 12px}
