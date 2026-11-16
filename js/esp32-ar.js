@@ -342,7 +342,8 @@ void loop() {
 
   // Interação por mão: usa área e profundidade tolerantes em vez de exigir
   // que a ponta do dedo esteja numa faixa de poucos milímetros.
-  function buttonAtFinger(tip,frontAllowance=.13){
+  function buttonAtFinger(tip){return findVRButtonAtFinger(tip,.13);}
+  function findVRButtonAtFinger(tip,frontAllowance=.13){
     if(!tip||!state.xrScene)return null;
     const T=window.THREE,point=new T.Vector3(...tip);state.xrScene.updateMatrixWorld(true);
     let best=null,bestScore=Infinity;
@@ -367,7 +368,7 @@ void loop() {
       seen.add(id);
       const tip=handTip(frame,source);
       if(!tip){touch.button=null;state.xrTouchStates.set(id,touch);continue;}
-      const button=buttonAtFinger(tip,.018);
+      const button=findVRButtonAtFinger(tip,.018);
       const pinch=state.handSamples.get(id)?.pinching;
       if(button&&button!==touch.button&&!pinch&&now-(touch.lastPress||0)>420){
         activateVRAction(button.userData.xrAction,frame);touch.lastPress=now;
