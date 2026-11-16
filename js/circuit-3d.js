@@ -25,11 +25,11 @@
         const id=guided?original.dataset.terminal:original.dataset.prototypeTerminal;
         const [owner,terminal]=id.split(':');const button=document.createElement('button');button.type='button';button.title=original.getAttribute('aria-label')||id;button.setAttribute('aria-label',button.title);
         let skipClick=false;
-        button.onclick=event=>{event.stopPropagation();if(skipClick){skipClick=false;return;}original.click();buildControls();};
+        button.onclick=event=>{event.stopPropagation();if(skipClick){skipClick=false;return;}stage.dispatchEvent(new CustomEvent('circuit-terminal-activate',{bubbles:true,detail:{id,canvasId:canvas.id}}));};
         button.onpointerdown=event=>{if(event.button!==0||button.disabled)return;event.stopPropagation();wireDrag={id,x:event.clientX,y:event.clientY,moved:false};button.setPointerCapture(event.pointerId);};
         button.onpointermove=event=>{if(!wireDrag||wireDrag.id!==id)return;if(Math.hypot(event.clientX-wireDrag.x,event.clientY-wireDrag.y)>5)wireDrag.moved=true;};
         button.onpointerup=event=>{if(!wireDrag||wireDrag.id!==id)return;const moved=wireDrag.moved;wireDrag=null;if(button.hasPointerCapture(event.pointerId))button.releasePointerCapture(event.pointerId);if(!moved)return;skipClick=true;const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-endpoint]');if(target&&!target.disabled&&target.dataset.endpoint!==id)stage.dispatchEvent(new CustomEvent('circuit-wire-request',{bubbles:true,detail:{a:id,b:target.dataset.endpoint,canvasId:canvas.id}}));};
-        button.onpointercancel=()=>wireDrag=null;button.classList.toggle('selected',original.classList.contains('selected'));
+        button.onpointercancel=()=>wireDrag=null;button.classList.toggle('selected',original.classList.contains('selected')||canvas.dataset.activeTerminal===id);
         if(owner==='ESP32'||owner==='PIN'){
           if(!all&&!main.has(terminal)&&!connected.has(`ESP32:${terminal}`)&&!connected.has(`PIN:${terminal}`))continue;
           button.className+=' board-pin-label';button.textContent=model.label(terminal);button.dataset.endpoint=id;
@@ -40,7 +40,9 @@
           button.onpointerenter=highlight;button.onfocus=highlight;button.onpointerleave=unhighlight;button.onblur=unhighlight;
           if(model.reserved.has(terminal)){button.disabled=true;button.title=terminal==='EN'?'Reset da placa: use o botão EN':'Reservado para a memória flash';button.setAttribute('aria-label',`${terminal}: ${button.title}`);}
         }else{
-          button.textContent=terminal==='K'?'B (−)':terminal;button.dataset.endpoint=id;overlay.append(button);controls.push({button,id});
+          button.textContent=terminal==='K'?'K (−)':terminal;button.dataset.endpoint=id;button.classList.add('component-pin-label');
+          const siblingPins=originals.filter(node=>(guided?node.dataset.terminal:node.dataset.prototypeTerminal)?.startsWith(`${owner}:`));
+          overlay.append(button);controls.push({button,id,partId:owner,terminalIndex:siblingPins.indexOf(original),terminalCount:siblingPins.length});
         }
       }
       for(const item of engine.state.components){
@@ -57,6 +59,18 @@
       const rect=canvas.getBoundingClientRect();
       for(const control of controls){
         const p=control.item?engine.componentPosition(control.item).add(new T.Vector3(0,.7,0)):engine.endpoint(control.id);if(!p)continue;const s=screen(p);
+        if(control.partId){
+          const item=engine.state.components.find(entry=>String(entry.id)===control.partId);
+          if(!item){control.button.hidden=true;continue;}
+          const center=screen(engine.componentPosition(item).add(new T.Vector3(0,.2,0)));
+          const count=Math.max(1,control.terminalCount||1);
+          const gap=Math.min(68,Math.max(52,(rect.width-56)/Math.max(1,count-1)));
+          const total=(count-1)*gap;
+          const mid=Math.max(28+total/2,Math.min(rect.width-28-total/2,center.x));
+          s.x=mid+(control.terminalIndex-(count-1)/2)*gap;
+          s.y=Math.max(52,Math.min(rect.height-30,center.y+58));
+          s.visible=center.visible;
+        }
         if(control.line){
           const b=control.button.getBoundingClientRect();control.line.setAttribute('x1',String(b.left+b.width/2-rect.left));control.line.setAttribute('y1',String(b.top+b.height/2-rect.top));control.line.setAttribute('x2',String(s.x));control.line.setAttribute('y2',String(s.y));control.line.style.display=control.highlight?'':'none';
         }else{control.button.style.left=`${s.x}px`;control.button.style.top=`${s.y}px`;control.button.hidden=!s.visible;}
