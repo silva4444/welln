@@ -10,7 +10,7 @@ import {
   listAssessments, listChallenges, listChatConversations, listChatMessages, listClasses, listLessonContent, listMaterials, listMessages,
   latestAutomaticBackup, listAuditLog, listBackupHistory, listNotifications, listRegisteredStudents, markNotificationsRead, overview, publicUser, recordAudit, recordBackupHistory, reviewSubmission, saveWorkspace,
   rateChatMessage, saveAttendance, saveGrade, saveRubric, sessionUser, setEnrollmentStatus, setPrivacyTask, setUserActive, updateUserAccess, submitAssessment, teacherAnalytics, teacherDiary, touchUser, updateAssessmentStatus,
-  transaction, updateClass, updateInstitution, upsertLesson, getCommunityState, mutateCommunity, updatePassword, revokeUserSessions, deactivateInternalStaffAccounts
+  transaction, updateClass, updateInstitution, upsertLesson, getCommunityState, mutateCommunity, updatePassword, revokeUserSessions, deactivateInternalStaffAccounts, requestStaffAccess, reviewStaffAccess
 } from "./db.mjs";
 import { answerChat, chatModel, chatProviderReady } from "./chat-service.mjs";
 
@@ -23,15 +23,15 @@ const environment = globalThis.process?.env || {};
 const production = environment.NODE_ENV === "production";
 function requireProductionSecrets(){
   if(!production)return;
-  const required=["CODA_TEACHER_EMAIL","CODA_TEACHER_PASSWORD","CODA_TEACHER_CODE","CODA_ADMIN_EMAIL","CODA_ADMIN_PASSWORD","CODA_ADMIN_CODE"];
+  const required=["CODA_TEACHER_EMAIL","CODA_TEACHER_PASSWORD","CODA_ADMIN_EMAIL","CODA_ADMIN_PASSWORD"];
   const missing=required.filter(key=>!String(environment[key]||"").trim());
-  const weak=["CODA_TEACHER_PASSWORD","CODA_TEACHER_CODE","CODA_ADMIN_PASSWORD","CODA_ADMIN_CODE"].filter(key=>String(environment[key]||"").length<16);
+  const weak=["CODA_TEACHER_PASSWORD","CODA_ADMIN_PASSWORD"].filter(key=>String(environment[key]||"").length<16);
   if(missing.length||weak.length)throw new Error(`Configuração de produção inválida. Defina ${[...missing,...weak].filter((item,index,array)=>array.indexOf(item)===index).join(", ")} com valores fortes (mínimo de 16 caracteres para senha e código).`);
   for(const key of ["CODA_TEACHER_EMAIL","CODA_ADMIN_EMAIL"]){const email=normalizeEmail(environment[key]);if(!validEmail(email)||email.endsWith("@coda.local"))throw new Error(`${key} precisa conter um e-mail real válido.`)}
 }
 requireProductionSecrets();
-const teacherCode = String(environment.CODA_TEACHER_CODE || "");
-const adminCode = String(environment.CODA_ADMIN_CODE || "");
+const teacherCode = "PROF-CODA";
+const adminCode = "ADMIN-CODA";
 const sessionCookie = "coda_session";
 const sessionDays = 7;
 const userPasswordMinimum = 6;
@@ -246,31 +246,22 @@ async function handleAuth(req, res, pathname) {
     if (!validEmail(email) || password.length < userPasswordMinimum) return fail(res, 400, `Informe e-mail válido e senha com pelo menos ${userPasswordMinimum} caracteres.`, "invalid_credentials");
     if (role === "Professor" && body.teacherCode !== teacherCode) return fail(res, 403, "Código de professor incorreto.", "invalid_teacher_code");
     if (role === "Admin" && body.adminCode !== adminCode) return fail(res, 403, "Código de administrador incorreto.", "invalid_admin_code");
-    let row = findUserByEmail(email); let createdAccount = false;
+    let row = findUserByEmail(email);
     if (!row) {
       if (role === "Aluno") return fail(res, 401, "Conta de aluno não encontrada. Use a opção Criar conta.", "invalid_credentials");
-      if(password.length<userPasswordMinimum)return fail(res,400,`A senha inicial de professor ou administrador precisa ter pelo menos ${userPasswordMinimum} caracteres.`,"weak_password");
       const passwordData = hashPassword(password);
-      createUser({ name: managedAccountName(email, role), email, passwordHash: passwordData.hash, passwordSalt: passwordData.salt, role });
-      row = findUserByEmail(email); createdAccount = true;
+      requestStaffAccess({name:managedAccountName(email,role),email,role,passwordHash:passwordData.hash,passwordSalt:passwordData.salt});
+      return json(res,202,{pending:true,message:"Solicitação enviada. Aguarde a aprovação do administrador para entrar."});
     } else {
-      if (row.role !== role) return fail(res, 403, `Esta conta pertence ao portal de ${row.role.toLowerCase()}.`, "wrong_portal");
-      if (!verifyPassword(password, row.password_salt, row.password_hash)) {
-        // A conta reservada é criada no início com a senha de ambiente. No primeiro
-        // acesso, o dono do código do perfil pode escolher sua senha. Depois disso,
-        // o hash deixa de ser o inicial e o código não redefine a senha novamente.
-        const reservedEmail = role === "Admin" ? environment.CODA_ADMIN_EMAIL : role === "Professor" ? environment.CODA_TEACHER_EMAIL : "";
-        const initialPassword = role === "Admin" ? environment.CODA_ADMIN_PASSWORD : role === "Professor" ? environment.CODA_TEACHER_PASSWORD : "";
-        const firstAccess = reservedEmail && email === normalizeEmail(reservedEmail) && initialPassword &&
-          verifyPassword(initialPassword, row.password_salt, row.password_hash);
-        if (!firstAccess) return fail(res, 401, "E-mail ou senha incorretos.", "invalid_credentials");
-        const passwordData = hashPassword(password);
-        updatePassword(row.id, passwordData.hash, passwordData.salt);
-        createdAccount = true;
+      if (!verifyPassword(password, row.password_salt, row.password_hash)) return fail(res,401,"E-mail ou senha incorretos.","invalid_credentials");
+      if (row.role !== role) {
+        if(row.role!=="Aluno"||role==="Aluno")return fail(res,403,`Esta conta pertence ao portal de ${row.role.toLowerCase()}.`,"wrong_portal");
+        requestStaffAccess({name:row.name,email,role});
+        return json(res,202,{pending:true,message:"Solicitação enviada. Aguarde a aprovação do administrador para entrar."});
       }
     }
     touchUser(row.id); issueSession(res, row.id, body.remember !== false);
-    return json(res, 200, { user: publicUser(row), created: createdAccount });
+    return json(res, 200, { user: publicUser(row), created: false });
   }
   if (pathname === "/api/auth/logout" && req.method === "POST") {
     const session = sessionFromRequest(req); if (session) deleteSession(tokenHash(session.token)); clearSession(res);
@@ -309,6 +300,16 @@ async function handleApi(req, res, url) {
   if (pathname === "/api/admin/dashboard" && req.method === "GET") {
     if (user.role !== "Admin") return fail(res, 403, "Acesso restrito ao administrador.", "permission_denied");
     return json(res, 200, adminDashboard(user.id));
+  }
+  const requestMatch=pathname.match(/^\/api\/admin\/access-requests\/(\d+)$/);
+  if(requestMatch&&req.method==="PATCH"){
+    if(user.role!=="Admin")return fail(res,403,"Acesso restrito ao administrador.","permission_denied");
+    const body=await readJson(req);
+    if(!["approved","rejected"].includes(body.decision))return fail(res,400,"Decisão inválida.","invalid_decision");
+    const result=reviewStaffAccess(user.id,Number(requestMatch[1]),body.decision);
+    if(!result)return fail(res,409,"Solicitação não encontrada ou conta incompatível.","invalid_access_request");
+    recordAudit(user.id,"staff_access_"+body.decision,"access_request",result.id,{email:result.email,role:result.role});
+    return json(res,200,{request:result});
   }
   if (pathname === "/api/admin/institution" && req.method === "PUT") {
     if (user.role !== "Admin") return fail(res, 403, "Acesso restrito ao administrador.", "permission_denied");

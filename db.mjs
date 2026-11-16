@@ -68,6 +68,19 @@ export function initDatabase() {
       expires_at TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS access_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL COLLATE NOCASE,
+      role TEXT NOT NULL CHECK(role IN ('Professor','Admin')),
+      password_hash TEXT,
+      password_salt TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+      created_at TEXT NOT NULL,
+      reviewed_at TEXT,
+      reviewed_by INTEGER REFERENCES users(id),
+      UNIQUE(email,role)
+    );
     CREATE TABLE IF NOT EXISTS classes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       teacher_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -456,6 +469,37 @@ export function createUser({ name, email, passwordHash, passwordSalt, role, inst
   return publicUser(findUserById(result.lastInsertRowid));
 }
 
+export function requestStaffAccess({name,email,role,passwordHash=null,passwordSalt=null}){
+  const current=db.prepare("SELECT id,status FROM access_requests WHERE email=? AND role=?").get(email,role);
+  if(current?.status==="pending")return current;
+  db.prepare(`INSERT INTO access_requests(name,email,role,password_hash,password_salt,status,created_at,reviewed_at,reviewed_by)
+    VALUES(?,?,?,?,?,'pending',?,NULL,NULL)
+    ON CONFLICT(email,role) DO UPDATE SET name=excluded.name,password_hash=excluded.password_hash,password_salt=excluded.password_salt,status='pending',created_at=excluded.created_at,reviewed_at=NULL,reviewed_by=NULL`)
+    .run(name,email,role,passwordHash,passwordSalt,now());
+  return db.prepare("SELECT id,status FROM access_requests WHERE email=? AND role=?").get(email,role);
+}
+
+export function reviewStaffAccess(adminId,id,decision){
+  if(!["approved","rejected"].includes(decision))return null;
+  return transaction(()=>{
+    const request=db.prepare("SELECT * FROM access_requests WHERE id=? AND status='pending'").get(id);
+    if(!request)return null;
+    let user=db.prepare("SELECT * FROM users WHERE email=? COLLATE NOCASE").get(request.email);
+    if(decision==="approved"){
+      if(user){
+        if(!user.active||user.role!=="Aluno")return null;
+        if(!updateUserAccess(adminId,user.id,{role:request.role}))return null;
+      }else{
+        if(!request.password_hash||!request.password_salt)return null;
+        user=createUser({name:request.name,email:request.email,role:request.role,passwordHash:request.password_hash,passwordSalt:request.password_salt});
+      }
+    }
+    db.prepare("UPDATE access_requests SET status=?,password_hash=NULL,password_salt=NULL,reviewed_at=?,reviewed_by=? WHERE id=?")
+      .run(decision,now(),adminId,id);
+    return {id:request.id,email:request.email,role:request.role,status:decision,userId:user?.id||null};
+  });
+}
+
 export function updatePassword(userId,passwordHash,passwordSalt){
   const result=db.prepare("UPDATE users SET password_hash=?,password_salt=? WHERE id=? AND active=1").run(passwordHash,passwordSalt,Number(userId));
   return Number(result.changes)>0;
@@ -524,7 +568,8 @@ export function adminDashboard(adminId) {
   });
   const institution = db.prepare("SELECT * FROM institutions WHERE id=?").get(institutionId) || db.prepare("SELECT * FROM institutions WHERE id=1").get();
   const privacyTasks = db.prepare("SELECT * FROM privacy_tasks ORDER BY rowid").all().map(row => ({ ...row, completed: Boolean(row.completed) }));
-  return { counts, users, classes, competencies, institution, privacyTasks };
+  const accessRequests=db.prepare("SELECT id,name,email,role,created_at FROM access_requests WHERE status='pending' ORDER BY created_at DESC LIMIT 100").all();
+  return { counts, users, classes, competencies, institution, privacyTasks, accessRequests };
 }
 
 export function updateInstitution(adminId, data) {

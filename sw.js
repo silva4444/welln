@@ -1,13 +1,13 @@
 "use strict";
 
-const CACHE_NAME = "coda-estudos-v14-6-admin-login-fix";
+const CACHE_NAME = "coda-estudos-v14-6-staff-approval";
 const CORE_FILES = [
   "./index.html",
   "./vr-preview.html",
-  "./style.css?v=14.7.2",
-  "./public-api.js?v=10.5.0",
+  "./style.css?v=14.7.3",
+  "./public-api.js?v=10.5.1",
   "./platform.js?v=10.2.1",
-  "./admin.js?v=10.5.0.3",
+  "./admin.js?v=10.5.0.4",
   "./lesson-content.js?v=10.2.1",
   "./styles/redesign.css?v=11.3.0",
   "./styles/polish.css?v=14.6.0",
@@ -25,12 +25,12 @@ const CORE_FILES = [
   "./components/circuit-simulator.css?v=10.9.3",
   "./pages/student.css",
   "./pages/teacher.css",
-  "./pages/admin.css?v=10.5.0.2",
+  "./pages/admin.css?v=10.5.0.3",
   "./components/esp32-webgl.css?v=14.4.0",
   "./dados.json",
   "./banco.json",
   "./manifest.json",
-  "./script.js?v=14.6.8",
+  "./script.js?v=14.6.9",
   "./components/esp32-reference.css?v=14.3.0",
   "./js/utils.js?v=14.0.0",
   "./js/state.js?v=14.6.0",
@@ -56,7 +56,7 @@ const CORE_FILES = [
   "./js/esp32-firmware.js?v=14.3.0",
   "./js/tutor.js?v=14.0.0",
   "./js/institution.js?v=14.0.0",
-  "./js/core.js?v=14.6.8",
+  "./js/core.js?v=14.6.9",
   "./js/esp32-runtime.js?v=14.0.0",
   "./js/device-mode.js?v=12.2.0",
   "./js/device-mode.js?v=12.3.0",

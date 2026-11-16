@@ -71,6 +71,7 @@
     $("#adminPrivacySummary").innerHTML=`<div class="privacy-ring" style="--privacy:${privacyPercent*3.6}deg"><span><strong>${privacyPercent}%</strong><small>concluído</small></span></div><div><span class="kicker">GOVERNANÇA</span><h2>Preparação LGPD</h2><p>${completed} de ${privacyTasks.length} controles organizados.</p><button type="button" data-open-admin-section="privacy">Continuar configuração →</button></div>`;
     $("#adminUserBadge").textContent=counts.users;
     fillInstitution(institution);
+    renderAccessRequests();
     renderUsers();
     $("#adminAcademicMetrics").innerHTML=[metric("TURMAS",counts.classes,"ativas na instituição","▦"),metric("AVALIAÇÕES",counts.assessments,"criadas no SQLite","?"),metric("AULAS EDITADAS",counts.lessons,"conteúdos personalizados","◎"),metric("MENSAGENS",counts.messages,"dúvidas e respostas","◇")].join("");
     $("#adminClassList").innerHTML=classes.map(item=>classRow(item)).join("")||"<div class=\"admin-empty\">Nenhuma turma criada ainda.</div>";
@@ -83,6 +84,17 @@
 
   function fillInstitution(item){
     $("#institutionName").value=item.name||"";$("#institutionShortName").value=item.short_name||"";$("#institutionCampus").value=item.campus||"";$("#institutionPrivacyEmail").value=item.privacy_email||"";$("#institutionPrimaryColor").value=item.primary_color||"#5b3cc4";$("#institutionAccentColor").value=item.accent_color||"#c4b5fd";$("#institutionPreview").textContent=item.short_name||"CO";
+  }
+
+  function renderAccessRequests(){
+    const root=$("#adminAccessRequests");if(!root)return;
+    const requests=state.data?.accessRequests||[];
+    root.innerHTML=requests.length?requests.map(item=>`<article class="admin-request-row"><div><strong>${safeEsc(item.name)}</strong><small>${safeEsc(item.email)} · ${safeEsc(item.role)} · ${date(item.created_at)}</small></div><div><button type="button" data-review-request="${Number(item.id)}" data-decision="approved">Aprovar</button><button type="button" data-review-request="${Number(item.id)}" data-decision="rejected">Recusar</button></div></article>`).join(""):'<p class="admin-empty">Nenhuma solicitação pendente.</p>';
+    $$('[data-review-request]',root).forEach(button=>button.onclick=async()=>{
+      const item=requests.find(request=>Number(request.id)===Number(button.dataset.reviewRequest));
+      if(!item||!confirm(`${button.dataset.decision==="approved"?"Aprovar":"Recusar"} o acesso de ${item.email} como ${item.role}?`))return;
+      button.disabled=true;try{await CodaAPI.reviewAccessRequest(item.id,button.dataset.decision);toast("Solicitação atualizada");await refresh()}catch(error){toast(error.message);button.disabled=false}
+    });
   }
 
   function renderUsers(){

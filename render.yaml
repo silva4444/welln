@@ -17,11 +17,7 @@ services:
         sync: false
       - key: CODA_TEACHER_PASSWORD
         sync: false
-      - key: CODA_TEACHER_CODE
-        sync: false
       - key: CODA_ADMIN_EMAIL
         sync: false
       - key: CODA_ADMIN_PASSWORD
-        sync: false
-      - key: CODA_ADMIN_CODE
         sync: false

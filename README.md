@@ -44,15 +44,15 @@ O aluno agora tem dois fluxos separados na tela inicial:
 
 A matrícula aceita de 3 a 30 letras, números, ponto, traço ou sublinhado e não pode se repetir. O professor consegue localizar o aluno cadastrado e adicioná-lo diretamente a uma turma.
 
-Professor e administrador não usam o cadastro público do aluno. O primeiro acesso com o código correto cria a conta do perfil. Para o e-mail reservado nas variáveis de ambiente, a conta é preparada na inicialização e o primeiro acesso com o código permite escolher uma senha própria:
+Professor e administrador podem usar e-mail e senha próprios. A primeira solicitação precisa da aprovação de um administrador. Contas reservadas pelas variáveis de ambiente usam a senha inicial configurada no servidor:
 
 1. Escolha **Professor** ou **Administrador**.
 2. Digite seu próprio e-mail.
 3. Escolha uma senha com pelo menos 6 caracteres.
 4. Informe o código correspondente.
-5. Se o e-mail ainda não estiver cadastrado, a Coda cria a conta. Nos próximos acessos, use o mesmo e-mail, a mesma senha e o código.
+5. Se o e-mail ainda não estiver cadastrado, aguarde a aprovação em **Usuários e acessos**. Depois, use o mesmo e-mail, a mesma senha e o código. Uma conta de aluno existente pode solicitar promoção com a senha atual.
 
-Os códigos administrativos não são publicados no repositório. Defina e-mails, senhas e códigos fortes pelas variáveis de ambiente `CODA_TEACHER_EMAIL`, `CODA_TEACHER_PASSWORD`, `CODA_TEACHER_CODE`, `CODA_ADMIN_EMAIL`, `CODA_ADMIN_PASSWORD` e `CODA_ADMIN_CODE` antes de iniciar a versão pública.
+Os códigos públicos `ADMIN-CODA` e `PROF-CODA` permitem solicitar acesso com e-mail e senha próprios. O administrador precisa aprovar novas contas no painel. Configure as credenciais iniciais secretas `CODA_TEACHER_EMAIL`, `CODA_TEACHER_PASSWORD`, `CODA_ADMIN_EMAIL` e `CODA_ADMIN_PASSWORD` no servidor antes de iniciar em produção. Uma conta reservada entra com a senha configurada no servidor e pode alterá-la após o login. As antigas variáveis de código não são mais usadas.
 
 No Render sem disco persistente, o SQLite em `data/coda.sqlite` pode ser recriado após uma implantação ou reinício. Para preservar contas e progresso entre implantações, configure armazenamento persistente ou migre o banco para um serviço gerenciado antes de usar dados reais.
 

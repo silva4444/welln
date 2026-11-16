@@ -26,6 +26,7 @@
     community: () => request("/api/community"),
     communityMutate: data => request("/api/community/mutate", { method: "POST", body: data }),
     adminDashboard: () => request("/api/admin/dashboard"),
+    reviewAccessRequest: (id, decision) => request(`/api/admin/access-requests/${encodeURIComponent(id)}`, { method: "PATCH", body: { decision } }),
     saveInstitution: data => request("/api/admin/institution", { method: "PUT", body: data }),
     setUserActive: (id, active) => request(`/api/admin/users/${id}`, { method: "PATCH", body: { active } }),
     updateUserAccess: (id, data) => request(`/api/admin/users/${id}`, { method: "PATCH", body: data }),
