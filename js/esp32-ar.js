@@ -9,7 +9,7 @@
     mode: "view", experience: "vr", support: {vr:false,ar:false}, placed: false, selected: null, scale: 1, rotation: 0,
     board: { id:"ESP32", kind:"board", x:0, y:0, z:-0.65 },
     components: [], program: null, cube: null, frameHandle: null, device: "headset",
-    grabbed: null, xrButtons: [], xrPinButtons: [], xrHands: new Map(), xrInputStates: new Map(), xrTouchStates:new Map(),xrActionTimes:new Map(),
+    grabbed: null, xrButtons: [], xrPinButtons: [], xrTerminalButtons: [], xrPointers:new Map(), xrHands: new Map(), xrInputStates: new Map(), xrTouchStates:new Map(),xrActionTimes:new Map(),
     handController:null,handSamples:new Map(),twoHandTransform:null,
     wiringMode:false, pendingTerminal:null, xrConnections:[], xrWires:null, xrWiresDirty:true, xrTable:null,
     boardLocked:false, vrPinPanel:null, vrPinPanelOpen:false, vrLockButton:null, vrLitKey:null, vrProgramOpen:false, vrKeyboardOpen:false, vrSystemInput:null, vrDock:null,
@@ -201,6 +201,11 @@ void loop() {
     if(action==="circuit:example")return loadVRExample();
     if(action==="pin:close")return closeVRPinPanel();
     if(action.startsWith("pin:select:"))return selectVRPin(action.slice("pin:select:".length));
+    if(action.startsWith("terminal:select:")){
+      const endpoint=action.slice("terminal:select:".length);
+      if(!state.wiringMode){state.wiringMode=true;state.pendingTerminal=null;}
+      return connectTerminal(endpoint);
+    }
     if(action==="template:blink")state.vrCode=VR_DEMO;else if(action==="template:high")state.vrCode=VR_HIGH;else if(action==="template:low")state.vrCode=VR_LOW;else if(action==="template:clear")state.vrCode="";
     else if(action==="add:led")return addComponent("led");else if(action==="add:resistor")return addComponent("resistor");
     else if(action==="add:button")return addComponent("button");else if(action==="add:sensor")return addComponent("sensor");
@@ -301,8 +306,8 @@ void loop() {
   function beginHandPinch(sample,frame){
     if(state.experience!=="vr"||state.mode!=="lab"||!sample.tracked)return;
     if(state.grabbed){startTwoHandTransform(sample.id);return;}
-    const tip=pointArray(sample.indexTip),pinch=pointArray(sample.pinchPoint),button=buttonAtFinger(tip);
-    if(button){activateVRAction(button.userData.xrAction,frame);button.scale.set(.9,.9,.9);setTimeout(()=>button.scale.set(1,1,1),110);return;}
+    const tip=pointArray(sample.indexTip),pinch=pointArray(sample.pinchPoint),button=buttonAtFinger(tip)||buttonAtFinger(pinch);
+    if(button){activateVRAction(button.userData.xrAction,frame);button.scale.set(.9,.9,.9);setTimeout(()=>{if(button.parent)button.scale.set(1,1,1);},110);return;}
     if(state.wiringMode){const endpoint=pickWireTerminal(null,pinch);if(endpoint)connectTerminal(endpoint);else{state.vrEditorMessage="PINCE SOBRE UM PIN OU TERMINAL";refreshVRScreen();}return;}
     const panel=findPanelNear(pinch);
     if(panel){const point=new window.THREE.Vector3(...pinch);state.grabbed={handId:sample.id,source:sample.source,object:panel.root,kind:"panel",distance:.65,offset:panel.root.position.clone().sub(point)};state.vrEditorMessage="PAINEL PRESO • MOVA E ABRA A PINÇA PARA SOLTAR";refreshVRScreen();return;}
@@ -334,22 +339,68 @@ void loop() {
   }
   function rayForSource(frame,source){const pose=source.targetRaySpace&&frame.getPose?.(source.targetRaySpace,state.refSpace);return pose?rayFromPose(pose):null;}
   function handTip(frame,source){if(!source.hand||!frame.getJointPose)return null;const space=source.hand.get("index-finger-tip"),pose=space&&frame.getJointPose(space,state.refSpace);if(!pose)return null;const p=pose.transform.position;return [p.x,p.y,p.z];}
-  function buttonAtFinger(tip){
-    if(!tip||!state.xrScene)return null;const T=window.THREE,point=new T.Vector3(...tip);state.xrScene.updateMatrixWorld(true);
-    for(const button of interactiveVRButtons()){const local=button.worldToLocal(point.clone()),{width=.12,height=.07}=button.geometry.parameters||{};
-      if(Math.abs(local.x)<=width/2+.006&&Math.abs(local.y)<=height/2+.006&&local.z>=.003&&local.z<=.04)return button;
+
+  // Interação por mão: usa área e profundidade tolerantes em vez de exigir
+  // que a ponta do dedo esteja numa faixa de poucos milímetros.
+  function buttonAtFinger(tip,frontAllowance=.13){
+    if(!tip||!state.xrScene)return null;
+    const T=window.THREE,point=new T.Vector3(...tip);state.xrScene.updateMatrixWorld(true);
+    let best=null,bestScore=Infinity;
+    for(const button of interactiveVRButtons()){
+      const local=button.worldToLocal(point.clone()),dimensions=button.geometry.parameters||{};
+      const width=dimensions.width||.12,height=dimensions.height||.07,depth=dimensions.depth||.022;
+      const dz=local.z-depth/2;
+      if(Math.abs(local.x)>width/2+.017||Math.abs(local.y)>height/2+.017||dz<-.025||dz>frontAllowance)continue;
+      const score=Math.hypot(Math.max(0,Math.abs(local.x)-width/2),Math.max(0,Math.abs(local.y)-height/2),dz*.7);
+      if(score<bestScore){best=button;bestScore=score;}
     }
-    return null;
+    return best;
   }
+  // Toque direto com indicador: dispara apenas ao entrar no botão e possui intervalo anti-repetição.
   function updateHandTouches(frame){
-    const activeHands=new Set();for(const source of state.session?.inputSources||[]){if(!source.hand)continue;
-      const side=source.handedness||"none",touch=state.xrTouchStates.get(side)||{button:null,wireEndpoint:null},tip=handTip(frame,source);
-      activeHands.add(side);
-      if(!tip){if(performance.now()-(touch.lastSeen||0)>180){touch.button=null;touch.wireEndpoint=null;}state.xrTouchStates.set(side,touch);continue;}
-      touch.lastSeen=performance.now();
-      touch.button=buttonAtFinger(tip);touch.candidate=state.wiringMode?terminalNearHand(tip):null;
-      state.xrTouchStates.set(side,touch);
-    }for(const [side,touch] of state.xrTouchStates)if(!activeHands.has(side)&&performance.now()-(touch.lastSeen||0)>180){touch.button=null;touch.wireEndpoint=null;state.xrTouchStates.set(side,touch);}
+    if(state.experience!=="vr")return;
+    const seen=new Set(),now=performance.now();
+    for(const source of state.session?.inputSources||[]){
+      if(!source.hand)continue;
+      const side=source.handedness||"none",id=state.handController?.idFor?.(source)||side;
+      const touch=state.xrTouchStates.get(id)||{button:null,lastPress:0};
+      seen.add(id);
+      const tip=handTip(frame,source);
+      if(!tip){touch.button=null;state.xrTouchStates.set(id,touch);continue;}
+      const button=buttonAtFinger(tip,.018);
+      const pinch=state.handSamples.get(id)?.pinching;
+      if(button&&button!==touch.button&&!pinch&&now-(touch.lastPress||0)>420){
+        activateVRAction(button.userData.xrAction,frame);touch.lastPress=now;
+      }
+      touch.button=button;state.xrTouchStates.set(id,touch);
+    }
+    for(const [id,touch] of state.xrTouchStates)if(!seen.has(id))touch.button=null;
+  }
+  // Ponteiro dos controles físicos Quest, verde sobre botões clicáveis.
+  function updateControllerPointers(frame){
+    if(state.experience!=="vr"||!state.xrScene)return;
+    const T=window.THREE,seen=new Set();
+    for(const source of state.session?.inputSources||[]){
+      if(source.hand)continue;
+      const ray=rayForSource(frame,source);if(!ray)continue;
+      seen.add(source);
+      let line=state.xrPointers.get(source);
+      if(!line){
+        const geometry=new T.BufferGeometry().setFromPoints([new T.Vector3(),new T.Vector3()]);
+        line=new T.Line(geometry,new T.LineBasicMaterial({color:0x77dfff,transparent:true,opacity:.9,depthTest:false}));
+        line.renderOrder=8;state.xrScene.add(line);state.xrPointers.set(source,line);
+      }
+      const hit=hitVRButton(ray,null),origin=new T.Vector3(...ray.origin),direction=new T.Vector3(...ray.dir).normalize();
+      const length=hit?Math.min(3,origin.distanceTo(hit.getWorldPosition(new T.Vector3()))):1.15;
+      const target=origin.clone().addScaledVector(direction,length),positions=line.geometry.attributes.position.array;
+      positions[0]=origin.x;positions[1]=origin.y;positions[2]=origin.z;
+      positions[3]=target.x;positions[4]=target.y;positions[5]=target.z;
+      line.geometry.attributes.position.needsUpdate=true;line.geometry.computeBoundingSphere();
+      line.material.color.setHex(hit?0xb9ff3b:0x77dfff);
+    }
+    for(const [source,line] of state.xrPointers)if(!seen.has(source)){
+      state.xrScene.remove(line);line.geometry.dispose();line.material.dispose();state.xrPointers.delete(source);
+    }
   }
   function updateGrabbed(frame){
     const grab=state.grabbed;if(!grab||grab.handId)return;const source=[...(state.session?.inputSources||[])].find(item=>item===grab.source);if(!source){releaseGrab("CONTROLE DESCONECTADO • OBJETO SOLTO COM SEGURANÇA");return;}
@@ -387,6 +438,8 @@ void loop() {
       part.scale.setScalar(.065*Math.max(.5,Math.min(1.8,Number(item.scale||1))));
     }
     state.xrScene.updateMatrixWorld(true);
+    updateVRComponentTerminals();
+    updateHandTouches(frame);updateControllerPointers(frame);
     if(state.xrWiresDirty)refreshXRWires();
     if(state.hardware?.outputs){
       const circuit={components:state.components.map(item=>({...item,type:item.kind||item.type})),wires:state.xrConnections};
@@ -433,7 +486,7 @@ void loop() {
     if(tip){const p=new T.Vector3(...tip);let best=null,distance=.075;state.xrScene.updateMatrixWorld(true);for(const button of buttons){const d=button.getWorldPosition(new T.Vector3()).distanceTo(p);if(d<distance){best=button;distance=d;}}return best;}
     return null;
   }
-  function interactiveVRButtons(){return [...state.xrButtons,...state.xrPinButtons].filter(button=>{if(button.userData.xrDisabled||button.parent===state.vrPinPanel&&performance.now()<(state.pinPanelReadyAt||0))return false;for(let node=button;node;node=node.parent)if(!node.visible)return false;return true;});}
+  function interactiveVRButtons(){return [...state.xrButtons,...state.xrPinButtons,...state.xrTerminalButtons].filter(button=>{if(button.userData.xrDisabled||button.parent===state.vrPinPanel&&performance.now()<(state.pinPanelReadyAt||0))return false;for(let node=button;node;node=node.parent)if(!node.visible)return false;return true;});}
   function terminalFromHit(hit){
     const T=window.THREE,model=window.CodaESPModel,board=state.xrBoard;
     let node=hit.object;while(node&&node!==board&&!state.xrParts.has(String(node.userData?.id||"")))node=node.parent;
@@ -453,6 +506,39 @@ void loop() {
     for(const name of [...model.left,...model.right]){const p=state.xrBoard.localToWorld(model.pinPoint(name).clone()),d=p.distanceTo(point);if(d<distance){best=`ESP32:${name}`;distance=d;}}
     for(const part of state.xrParts.values())for(const [name,local] of Object.entries(part.userData.terminals||{})){const d=part.localToWorld(local.clone()).distanceTo(point);if(d<distance){best=`${part.userData.id}:${name}`;distance=d;}}
     return best;
+  }
+  function updateVRComponentTerminals(){
+    if(state.experience!=="vr"||!state.xrScene)return;
+    const current=new Set();
+    for(const item of state.components){
+      const part=state.xrParts.get(item.id);if(!part)continue;
+      const names=Object.keys(part.userData.terminals||{});
+      names.forEach((name,index)=>{
+        const endpoint=`${item.id}:${name}`;current.add(endpoint);
+        let button=state.xrTerminalButtons.find(node=>node.userData.xrEndpoint===endpoint);
+        if(!button){
+          const label=name==="A"?"A (+)":name==="B"?"B (-)":name;
+          button=vrButton(state.xrScene,label,`terminal:select:${endpoint}`,0,0,.115,.052,"#174c59",state.xrTerminalButtons);
+          button.userData.xrEndpoint=endpoint;
+        }
+        // Pinos independentes da escala física reduzida de cada componente.
+        button.position.set(item.x+.145,item.y+.115+index*.068,item.z+.12);
+        button.visible=state.placed;
+        button.material.color.setHex(state.pendingTerminal===endpoint?0x5b812a:0x174c59);
+      });
+    }
+    for(const button of [...state.xrTerminalButtons])if(!current.has(button.userData.xrEndpoint)){
+      state.xrScene.remove(button);
+      button.traverse(object=>{
+        object.geometry?.dispose?.();object.material?.map?.dispose?.();object.material?.dispose?.();
+      });
+      state.xrTerminalButtons.splice(state.xrTerminalButtons.indexOf(button),1);
+    }
+    for(const button of state.xrPinButtons){
+      const action=button.userData.xrAction;
+      if(action?.startsWith("pin:select:"))button.material.color.setHex(
+        state.pendingTerminal===`ESP32:${action.slice("pin:select:".length)}`?0x5b812a:0x442b65);
+    }
   }
   function addVRComponentPinLabels(part){
     const T=window.THREE;for(const [name,p] of Object.entries(part.userData.terminals||{})){
@@ -570,7 +656,7 @@ void loop() {
     // suavização. O evento select fica reservado aos controles físicos.
     if(event.inputSource?.hand)return;
     const frame=event.frame,source=event.inputSource,ray=rayForSource(frame,source),tip=handTip(frame,source),button=source.hand?buttonAtFinger(tip):hitVRButton(ray,null);
-    if(button){activateVRAction(button.userData.xrAction,frame);button.scale.set(.9,.9,.9);setTimeout(()=>button.scale.set(1,1,1),110);return;}
+    if(button){activateVRAction(button.userData.xrAction,frame);button.scale.set(.9,.9,.9);setTimeout(()=>{if(button.parent)button.scale.set(1,1,1);},110);return;}
     if(state.wiringMode){
       const endpoint=pickWireTerminal(source.hand?null:ray,tip),side=source.handedness||"none",touch=state.xrTouchStates.get(side)||{button:null,wireEndpoint:null};
       if(endpoint&&touch.wireEndpoint!==endpoint){connectTerminal(endpoint);if(source.hand){touch.wireEndpoint=endpoint;state.xrTouchStates.set(side,touch);}}
@@ -675,7 +761,7 @@ void loop() {
     }
   }
   async function exitAR(){ try{ await state.session?.end(); }catch{} }
-  function cleanup(){ state.hitSource?.cancel?.(); state.hitSource=null;state.grabbed=null;state.twoHandTransform=null;state.handSamples.clear();state.handController?.reset?.();state.handController=null;state.xrTouchStates.clear();state.xrActionTimes.clear();state.wiringMode=false;state.pendingTerminal=null;state.boardLocked=false;state.vrPinPanelOpen=false;state.vrProgramOpen=false;state.vrKeyboardOpen=false;state.vrSystemInput?.remove();state.vrSystemInput=null;state.vrRuntime?.stop?.();state.vrRuntime=null;state.vrRunning=false;state.hardware=null;state.vrHardwareKey=null;state.vrLitKey=null;state.lastWireRefresh=0; state.session=null; state.refSpace=null; state.viewerSpace=null; state.lastHit=null; state.selected=null; state.xrRenderer?.setAnimationLoop(null); if(state.xrScene)window.CodaESPModel?.dispose(state.xrScene);state.xrRenderer?.dispose();state.xrRenderer=null;state.xrScene=null;state.xrCircuit=null;state.xrWires=null;state.xrTable=null;state.xrButtons=[];state.xrPinButtons=[];state.xrHands.clear();state.vrScreen=null;state.vrEditorRoot=null;state.vrKeyboardRoot=null;state.vrPinPanel=null;state.vrDock=null;state.vrLockButton=null;state.canvas?.remove(); state.canvas=null; state.gl=null; updateButtons(); }
+  function cleanup(){ state.hitSource?.cancel?.(); state.hitSource=null;state.grabbed=null;state.twoHandTransform=null;state.handSamples.clear();state.handController?.reset?.();state.handController=null;state.xrTouchStates.clear();state.xrActionTimes.clear();state.xrPointers.clear();state.xrTerminalButtons=[];state.wiringMode=false;state.pendingTerminal=null;state.boardLocked=false;state.vrPinPanelOpen=false;state.vrProgramOpen=false;state.vrKeyboardOpen=false;state.vrSystemInput?.remove();state.vrSystemInput=null;state.vrRuntime?.stop?.();state.vrRuntime=null;state.vrRunning=false;state.hardware=null;state.vrHardwareKey=null;state.vrLitKey=null;state.lastWireRefresh=0; state.session=null; state.refSpace=null; state.viewerSpace=null; state.lastHit=null; state.selected=null; state.xrRenderer?.setAnimationLoop(null); if(state.xrScene)window.CodaESPModel?.dispose(state.xrScene);state.xrRenderer?.dispose();state.xrRenderer=null;state.xrScene=null;state.xrCircuit=null;state.xrWires=null;state.xrTable=null;state.xrButtons=[];state.xrPinButtons=[];state.xrHands.clear();state.vrScreen=null;state.vrEditorRoot=null;state.vrKeyboardRoot=null;state.vrPinPanel=null;state.vrDock=null;state.vrLockButton=null;state.canvas?.remove(); state.canvas=null; state.gl=null; updateButtons(); }
   function onEnd(){ cleanup(); setStatus("Sessão encerrada","Você pode entrar novamente quando quiser.",state.supported?"ok":"warn"); }
 
   function clampMobile(value,min,max){return Math.max(min,Math.min(max,value));}
