@@ -56,3 +56,14 @@
 .back-to-about{display:inline-flex;align-items:center;align-self:flex-start;margin-bottom:16px;padding:8px 0;border:0;background:none;color:var(--muted);font:700 .8rem Manrope,system-ui,sans-serif;cursor:pointer}
 .back-to-about:hover{color:var(--brand)}
 @media(max-width:780px){.about-landing-highlights{grid-template-columns:1fr}.about-landing-header{padding-bottom:22px}.about-landing-tag{display:none}.about-landing-main{padding-top:36px}.about-landing h1{font-size:clamp(2rem,8vw,3.25rem)}}
+
+
+/* Atalho da senha no menu retrátil: ícone quando fechado, texto quando expandido. */
+.sidebar .sidebar-utility{display:flex;align-items:center;justify-content:center;width:100%;min-width:0;box-sizing:border-box}
+.sidebar .sidebar-utility .open-password{display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;max-width:100%;min-width:0;min-height:44px;line-height:1.25;white-space:nowrap;overflow:hidden}
+@media(min-width:851px){
+.sidebar:not(:hover):not(:focus-within) .sidebar-utility{padding-top:12px}
+.sidebar:not(:hover):not(:focus-within) .sidebar-utility .open-password{width:44px;height:44px;padding:0;font-size:0}
+.sidebar:not(:hover):not(:focus-within) .sidebar-utility .open-password::before{content:"🔑";font-size:19px;line-height:1}
+}
+@media(max-width:850px){.sidebar .sidebar-utility .open-password{width:100%;padding:10px 14px;font-size:.82rem}}
