@@ -43,3 +43,17 @@ test("códigos públicos solicitam acesso; somente administrador autenticado apr
     wrong:403,pending:202,pendingFlag:true,anonymous:null,takeover:401,owner:200,requestRole:'Admin',forbidden:401,approved:200,active:200,activeRole:'Admin',teacherPending:202
   });
 });
+
+test("administrador adicional é provisionado sem substituir o administrador original",()=>{
+  const scenario=`
+    import {createCodaServer} from './server.mjs';
+    const server=createCodaServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const origin='http://127.0.0.1:'+server.address().port;
+    const login=async(email,password)=>{const response=await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({email,password,role:'Admin',adminCode:'ADMIN-CODA'})});return {status:response.status,body:await response.json()}};
+    try{const original=await login('dono@example.com','SenhaInicialForte2026');const added=await login('gabriel@coda.com','SenhaTemporariaForte2026');const denied=await login('gabriel@coda.com','SenhaErrada2026');console.log(JSON.stringify({original:original.status,added:added.status,role:added.body.user?.role,denied:denied.status}))}finally{await new Promise(resolve=>server.close(resolve))}
+  `;
+  const env={...process.env,NODE_ENV:'production',CODA_DATABASE:':memory:',CODA_TEACHER_EMAIL:'professor@example.com',CODA_TEACHER_PASSWORD:'SenhaProfessorForte2026',CODA_ADMIN_EMAIL:'dono@example.com',CODA_ADMIN_PASSWORD:'SenhaInicialForte2026',CODA_ADDITIONAL_ADMIN_EMAIL:'gabriel@coda.com',CODA_ADDITIONAL_ADMIN_PASSWORD:'SenhaTemporariaForte2026'};
+  const result=spawnSync(process.execPath,['--input-type=module','-e',scenario],{cwd:new URL('../',import.meta.url),env,encoding:'utf8',timeout:20_000});
+  assert.equal(result.status,0,result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout.trim()),{original:200,added:200,role:'Admin',denied:401});
+});

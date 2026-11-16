@@ -10,7 +10,7 @@ import {
   listAssessments, listChallenges, listChatConversations, listChatMessages, listClasses, listLessonContent, listMaterials, listMessages,
   latestAutomaticBackup, listAuditLog, listBackupHistory, listNotifications, listRegisteredStudents, markNotificationsRead, overview, publicUser, recordAudit, recordBackupHistory, reviewSubmission, saveWorkspace,
   rateChatMessage, saveAttendance, saveGrade, saveRubric, sessionUser, setEnrollmentStatus, setPrivacyTask, setUserActive, updateUserAccess, submitAssessment, teacherAnalytics, teacherDiary, touchUser, updateAssessmentStatus,
-  transaction, updateClass, updateInstitution, upsertLesson, getCommunityState, mutateCommunity, updatePassword, revokeUserSessions, deactivateInternalStaffAccounts, requestStaffAccess, reviewStaffAccess
+  transaction, updateClass, updateInstitution, upsertLesson, getCommunityState, mutateCommunity, updatePassword, revokeUserSessions, deactivateInternalStaffAccounts, requestStaffAccess, reviewStaffAccess, completeStaffRequestForProvision, wasAdminProvisioned, markAdminProvisioned
 } from "./db.mjs";
 import { answerChat, chatModel, chatProviderReady } from "./chat-service.mjs";
 
@@ -117,6 +117,24 @@ function ensureSystemAccounts() {
     password: environment.CODA_ADMIN_PASSWORD,
     role: "Admin"
   });
+  const additionalEmail=normalizeEmail(environment.CODA_ADDITIONAL_ADMIN_EMAIL);
+  const additionalPassword=String(environment.CODA_ADDITIONAL_ADMIN_PASSWORD||"");
+  if(additionalEmail&&additionalPassword.length>=16&&validEmail(additionalEmail)&&!wasAdminProvisioned(additionalEmail)){
+    const existing=findUserByEmail(additionalEmail);
+    const credentials=hashPassword(additionalPassword);
+    transaction(()=>{
+      if(existing){
+        if(existing.role!=="Admin"){
+          const primary=findUserByEmail(normalizeEmail(environment.CODA_ADMIN_EMAIL));
+          if(!primary||!updateUserAccess(primary.id,existing.id,{role:"Admin"}))throw new Error("Não foi possível provisionar o administrador adicional.");
+        }
+        if(!updatePassword(existing.id,credentials.hash,credentials.salt))throw new Error("Não foi possível definir a senha inicial do administrador adicional.");
+        revokeUserSessions(existing.id);
+      }else createUser({name:managedAccountName(additionalEmail,"Admin"),email:additionalEmail,passwordHash:credentials.hash,passwordSalt:credentials.salt,role:"Admin"});
+      completeStaffRequestForProvision(additionalEmail);
+      markAdminProvisioned(additionalEmail);
+    });
+  }
 }
 
 // Em hospedagens de demonstração, não exponha contas internas com senhas padrão.

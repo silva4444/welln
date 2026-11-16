@@ -81,6 +81,10 @@ export function initDatabase() {
       reviewed_by INTEGER REFERENCES users(id),
       UNIQUE(email,role)
     );
+    CREATE TABLE IF NOT EXISTS provisioned_admins (
+      email TEXT PRIMARY KEY COLLATE NOCASE,
+      created_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS classes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       teacher_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -477,6 +481,18 @@ export function requestStaffAccess({name,email,role,passwordHash=null,passwordSa
     ON CONFLICT(email,role) DO UPDATE SET name=excluded.name,password_hash=excluded.password_hash,password_salt=excluded.password_salt,status='pending',created_at=excluded.created_at,reviewed_at=NULL,reviewed_by=NULL`)
     .run(name,email,role,passwordHash,passwordSalt,now());
   return db.prepare("SELECT id,status FROM access_requests WHERE email=? AND role=?").get(email,role);
+}
+
+export function completeStaffRequestForProvision(email){
+  db.prepare("UPDATE access_requests SET status='approved',password_hash=NULL,password_salt=NULL,reviewed_at=? WHERE email=? AND status='pending'").run(now(),email);
+}
+
+export function wasAdminProvisioned(email){
+  return Boolean(db.prepare("SELECT 1 FROM provisioned_admins WHERE email=?").get(email));
+}
+
+export function markAdminProvisioned(email){
+  db.prepare("INSERT INTO provisioned_admins(email,created_at) VALUES(?,?)").run(email,now());
 }
 
 export function reviewStaffAccess(adminId,id,decision){

@@ -54,6 +54,8 @@ Professor e administrador podem usar e-mail e senha próprios. A primeira solici
 
 Os códigos públicos `ADMIN-CODA` e `PROF-CODA` permitem solicitar acesso com e-mail e senha próprios. O administrador precisa aprovar novas contas no painel. Configure as credenciais iniciais secretas `CODA_TEACHER_EMAIL`, `CODA_TEACHER_PASSWORD`, `CODA_ADMIN_EMAIL` e `CODA_ADMIN_PASSWORD` no servidor antes de iniciar em produção. Uma conta reservada entra com a senha configurada no servidor e pode alterá-la após o login. As antigas variáveis de código não são mais usadas.
 
+Para recuperar uma conta administrativa sem substituir a conta original, configure `CODA_ADDITIONAL_ADMIN_EMAIL` e `CODA_ADDITIONAL_ADMIN_PASSWORD` (mínimo 16 caracteres) no servidor. O provisionamento concede acesso uma vez por banco, revoga sessões antigas desse e-mail e não redefine a senha nos reinícios seguintes. Troque a senha temporária na interface após entrar.
+
 No Render sem disco persistente, o SQLite em `data/coda.sqlite` pode ser recriado após uma implantação ou reinício. Para preservar contas e progresso entre implantações, configure armazenamento persistente ou migre o banco para um serviço gerenciado antes de usar dados reais.
 
 ## Tutor Coda 10.5 — sem API de IA
