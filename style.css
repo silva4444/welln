@@ -8,10 +8,10 @@
 @import url("./components/cards.css");
 @import url("./components/three-d-programmer.css?v=14.2.0");
 @import url("./components/circuit-simulator.css?v=10.9.3");
-@import url("./components/esp32-webgl.css?v=14.4.0");
+@import url("./components/esp32-webgl.css?v=14.4.1");
 @import url("./components/social-network.css?v=10.6.0");
 @import url("./components/social-profile-admin.css?v=10.8.1");
-@import url("./components/account-about.css?v=1.0.0");
+@import url("./components/account-about.css?v=1.0.1");
 @import url("./components/social-v3.css?v=10.9.1");
 @import url("./pages/student.css");
 @import url("./pages/teacher.css");
