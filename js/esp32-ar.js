@@ -1,839 +1,19 @@
-(() => {
-  "use strict";
-
-  const $ = (s, root=document) => root.querySelector(s);
-  const $$ = (s, root=document) => [...root.querySelectorAll(s)];
-  const state = {
-    supported: false, checked: false, session: null, gl: null, canvas: null,
-    refSpace: null, viewerSpace: null, hitSource: null, lastHit: null,
-    mode: "view", experience: "vr", support: {vr:false,ar:false}, placed: false, selected: null, scale: 1, rotation: 0,
-    board: { id:"ESP32", kind:"board", x:0, y:0, z:-0.65 },
-    components: [], program: null, cube: null, frameHandle: null, device: "headset",
-    grabbed: null, xrButtons: [], xrPinButtons: [], xrHands: new Map(), xrInputStates: new Map(), xrTouchStates:new Map(),xrActionTimes:new Map(),
-    wiringMode:false, pendingTerminal:null, xrConnections:[], xrWires:null, xrWiresDirty:true, xrTable:null,
-    boardLocked:false, vrPinPanel:null, vrPinPanelOpen:false, vrLockButton:null, vrLitKey:null, vrProgramOpen:false, vrKeyboardOpen:false, vrSystemInput:null, vrDock:null,
-    vrCode: "", vrRuntime: null, vrRunning: false, vrScreen: null, vrSerial: [], vrEditorMessage: "PRONTO PARA PROGRAMAR",
-    mobile: { stream:null, fallback:false, placed:false, locked:false, x:50, y:58, scale:1, rotation:0, dragging:false, dragDx:0, dragDy:0, pinchDistance:0, renderer:null }
-  };
-
-  const VERT = `attribute vec3 aPosition; uniform mat4 uProjection; uniform mat4 uView; uniform mat4 uModel; void main(){ gl_Position=uProjection*uView*uModel*vec4(aPosition,1.0); }`;
-  const FRAG = `precision mediump float; uniform vec4 uColor; void main(){ gl_FragColor=uColor; }`;
-
-  function toast(message){ window.CodaCore?.showToast?.(message); }
-  function setStatus(title, text, type=""){
-    const box=$("#arStatus"); if(!box) return;
-    box.className=`ar-status ${type}`.trim();
-    box.innerHTML=`<span>${type==="ok"?"âœ“":type==="warn"?"!":"â—"}</span><div><strong>${title}</strong><small>${text}</small></div>`;
-  }
-
-  function setMobileStatus(title, text, type=""){
-    const box=$("#mobileARStatus"); if(!box) return;
-    box.className=`ar-status ${type}`.trim();
-    box.innerHTML=`<span>${type==="ok"?"âœ“":type==="warn"?"!":"â—"}</span><div><strong>${title}</strong><small>${text}</small></div>`;
-  }
-
-  const VR_DEMO=`void setup() {
-  pinMode(2, OUTPUT);
-  Serial.begin(115200);
-}
-
-void loop() {
-  digitalWrite(2, HIGH);
-  Serial.println("LED ligado");
-  delay(500);
-  digitalWrite(2, LOW);
-  Serial.println("LED desligado");
-  delay(500);
-}`;
-  const VR_HIGH=`void setup() {
-  pinMode(2, OUTPUT);
-}
-void loop() {
-  digitalWrite(2, HIGH);
-  delay(1000);
-}`;
-  const VR_LOW=`void setup() {
-  pinMode(2, OUTPUT);
-}
-void loop() {
-  digitalWrite(2, LOW);
-  delay(1000);
-}`;
-
-  function ensureVRRuntime(){
-    if(state.vrRuntime)return state.vrRuntime;
-    const core=window.CodaESP32Runtime;
-    if(!core?.createRuntime)return null;
-    state.vrRuntime=core.createRuntime({
-      onState(snapshot){state.hardware=snapshot;state.vrRunning=Boolean(snapshot.running);refreshVRScreen();},
-      onSerial(line){state.vrSerial.push(String(line).slice(0,80));state.vrSerial=state.vrSerial.slice(-4);refreshVRScreen();},
-      onError(error){state.vrRunning=false;state.vrEditorMessage=`ERRO: ${error.message}`;refreshVRScreen();}
-    });
-    return state.vrRuntime;
-  }
-
-  function saveVRCode(){
-    try{localStorage.setItem("coda-vr-sketch-v146",state.vrCode);}catch{}
-    const editor=$("#espFirmwareCode");if(editor)editor.value=state.vrCode;
-    refreshVRScreen();
-  }
-
-  function runVRCode(){
-    const runtime=ensureVRRuntime();
-    if(!runtime){state.vrEditorMessage="SIMULADOR NÃƒO CARREGADO";refreshVRScreen();return;}
-    if(!state.vrCode.trim()){state.vrEditorMessage="DIGITE UM CÃ“DIGO ANTES DE EXECUTAR";refreshVRScreen();return;}
-    try{runtime.start(state.vrCode);state.vrRunning=true;state.vrEditorMessage="â— EXECUTANDO NO ESP32 VIRTUAL";}
-    catch(error){state.vrRunning=false;state.vrEditorMessage=`ERRO: ${error.message}`;}
-    refreshVRScreen();
-  }
-
-  function stopVRCode(){state.vrRuntime?.stop();state.vrRunning=false;state.vrEditorMessage="â–  EXECUÃ‡ÃƒO INTERROMPIDA";refreshVRScreen();}
-  function toggleVRProgram(frame){
-    state.vrProgramOpen=!state.vrProgramOpen;
-    if(state.vrEditorRoot)state.vrEditorRoot.visible=state.vrProgramOpen;
-    if(!state.vrProgramOpen){state.vrKeyboardOpen=false;state.vrSystemInput?.blur();}
-    if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=state.vrProgramOpen&&state.vrKeyboardOpen&&!state.vrPinPanelOpen;
-    if(state.vrDock)state.vrDock.position.set(state.vrProgramOpen?1.25:0,state.vrProgramOpen?1.75:1.46,state.vrProgramOpen?-.85:-.75);
-    if(state.vrProgramOpen)bringPanelsNear(frame);
-    state.vrEditorMessage=state.vrProgramOpen?"EDITOR ABERTO â€¢ TOQUE DIGITAR":"EDITOR FECHADO â€¢ BANCADA LIVRE";refreshVRScreen();
-  }
-  function openVRCodeInput(){
-    if(!state.vrProgramOpen)return;
-    if(state.session?.isSystemKeyboardSupported){
-      if(!state.vrSystemInput){
-        const input=document.createElement("textarea");input.setAttribute("aria-label","CÃ³digo do ESP32 no teclado do Quest");
-        Object.assign(input.style,{position:"fixed",left:"8px",top:"8px",width:"2px",height:"2px",opacity:"0.01",zIndex:"1"});
-        document.body.appendChild(input);state.vrSystemInput=input;
-      }
-      const input=state.vrSystemInput,original=state.vrCode;input.value="";
-      input.oninput=()=>{state.vrCode=original+input.value;state.vrEditorMessage="CÃ“DIGO RECEBIDO DO TECLADO QUEST";saveVRCode();};
-      input.focus();state.vrKeyboardOpen=false;if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=false;
-      state.vrEditorMessage="TECLADO QUEST ABERTO â€¢ DIGITE O CÃ“DIGO";
-    }else{state.vrKeyboardOpen=!state.vrKeyboardOpen;if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=state.vrKeyboardOpen&&!state.vrPinPanelOpen;
-      state.vrEditorMessage=state.vrKeyboardOpen?"TECLADO VR ABERTO â€¢ TOQUE NAS TECLAS":"TECLADO VR FECHADO";}
-    refreshVRScreen();
-  }
-  function toggleVRKeyboard(){
-    if(!state.vrProgramOpen)return;state.vrSystemInput?.blur();state.vrKeyboardOpen=!state.vrKeyboardOpen;
-    if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=state.vrKeyboardOpen&&!state.vrPinPanelOpen;
-    state.vrEditorMessage=state.vrKeyboardOpen?"TECLADO VR ABERTO â€¢ TOQUE NAS TECLAS":"TECLADO VR FECHADO";refreshVRScreen();
-  }
-
-  function canvasTexture(width,height){
-    const canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;
-    const texture=new window.THREE.CanvasTexture(canvas);texture.minFilter=window.THREE.LinearFilter;texture.magFilter=window.THREE.LinearFilter;
-    return {canvas,ctx:canvas.getContext("2d"),texture};
-  }
-
-  function labelMaterial(text,{width=512,height=128,bg="#231537",fg="#f4ecff",accent="#b68cff",font=46}={}){
-    const view=canvasTexture(width,height),ctx=view.ctx;ctx.fillStyle=bg;ctx.fillRect(0,0,width,height);ctx.strokeStyle=accent;ctx.lineWidth=5;ctx.strokeRect(3,3,width-6,height-6);
-    ctx.fillStyle=fg;ctx.font=`800 ${font}px Manrope,Arial`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(text,width/2,height/2);
-    return new window.THREE.MeshBasicMaterial({map:view.texture,transparent:false});
-  }
-
-  function vrButton(parent,label,action,x,y,w=.16,h=.065,color="#382451",registry=state.xrButtons){
-    const T=window.THREE,button=new T.Mesh(new T.BoxGeometry(w,h,.022),new T.MeshStandardMaterial({color,roughness:.68,metalness:.08}));
-    button.position.set(x,y,.025);button.userData.xrAction=action;button.userData.xrInteractive=true;
-    const face=new T.Mesh(new T.PlaneGeometry(w*.92,h*.78),labelMaterial(label,{width:384,height:112,bg:color,accent:action==="run"?"#e0b4ff":"#916aba",font:40}));face.position.z=.012;button.add(face);parent.add(button);registry.push(button);return button;
-  }
-
-  function buildVREditor(scene){
-    const T=window.THREE,dock=new T.Group();dock.name="CODA_VR_DOCK";dock.position.set(0,1.46,-.75);scene.add(dock);
-    const dockBack=new T.Mesh(new T.BoxGeometry(1.46,.16,.035),new T.MeshStandardMaterial({color:0x2c1945,roughness:.68}));dock.add(dockBack);
-    [["PROGRAMAR","program:toggle",-.50,.0,.31],["PINOS","pin:panel",-.17,.0,.22],["FIAÃ‡ÃƒO","wire:toggle",.11,.0,.23],["FIXAR ESP","board:lock",.45,.0,.29]].forEach(([label,action,x,y,w])=>vrButton(dock,label,action,x,y,w,.075,"#513278"));state.vrDock=dock;
-    const root=new T.Group();root.name="CODA_VR_EDITOR";root.position.set(-.56,1.40,-.88);root.rotation.y=.10;root.visible=false;scene.add(root);
-    const panel=new T.Mesh(new T.BoxGeometry(1.62,1.68,.035),new T.MeshStandardMaterial({color:0x251738,roughness:.72,metalness:.12}));root.add(panel);
-    const screenData=canvasTexture(1280,620),screen=new T.Mesh(new T.PlaneGeometry(1.5,.70),new T.MeshBasicMaterial({map:screenData.texture}));screen.position.set(0,.14,.02);root.add(screen);
-    state.vrScreen=screenData;
-    [["BLINK","template:blink",-.60,-.32,.18],["HIGH","template:high",-.40,-.32,.16],["LOW","template:low",-.22,-.32,.15],["+ LED","add:led",-.04,-.32,.17],["+ R","add:resistor",.16,-.32,.17],["â–¶ RUN","run",.39,-.32,.19],["â–  STOP","stop",.60,-.32,.18]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.065,action==="run"?"#70419b":"#43295f"));
-    [["â†¶ GIRAR","rotate:left",-.65,-.45,.18],["â†· GIRAR","rotate:right",-.44,-.45,.18],["FIAÃ‡ÃƒO","wire:toggle",-.22,-.45,.21],["APAGAR FIOS","wire:clear",.03,-.45,.23],["TRAZER MESA","bring:table",.33,-.45,.27],["PAINÃ‰IS PERTO","bring:keyboard",.62,-.45,.30]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.062,action==="wire:toggle"?"#5d367a":"#43295f"));
-    state.vrLockButton=vrButton(root,"FIXAR ESP","board:lock",-.30,-.58,.30,.064,"#513278");
-    vrButton(root,"TECLADO VR","code:virtual",-.67,-.58,.23,.064,"#70419b");
-    vrButton(root,"PINO ESP","pin:panel",.15,-.58,.28,.064,"#56377e");
-    vrButton(root,"DIGITAR","code:input",.55,-.58,.28,.064,"#70419b");
-    [["DESFAZER FIO","wire:undo",-.55,-.70,.30],["+ BOTÃƒO","add:button",-.15,-.70,.25],["+ SENSOR","add:sensor",.23,-.70,.27],["LIMPAR","template:clear",.58,-.70,.25]].forEach(([label,action,x,y,w])=>vrButton(root,label,action,x,y,w,.064,"#422b60"));
-    vrButton(root,"MONTAR EXEMPLO","circuit:example",0,-.80,.42,.060,"#63408d");
-
-    const keyboard=new T.Group();keyboard.name="CODA_VR_KEYBOARD";keyboard.position.set(.60,1.12,-.78);keyboard.rotation.set(-.17,-.12,0);keyboard.visible=false;scene.add(keyboard);
-    const base=new T.Mesh(new T.BoxGeometry(1.22,.66,.04),new T.MeshStandardMaterial({color:0x2b1b41,roughness:.75,metalness:.1}));keyboard.add(base);
-    const rows=["1234567890","qwertyuiop","asdfghjkl","zxcvbnm","\"'!+-*/%:#[]"];
-    rows.forEach((chars,row)=>{const keyW=chars.length>10?.079:.098,gap=.011,total=chars.length*(keyW+gap)-gap;[...chars].forEach((char,i)=>vrButton(keyboard,char.toUpperCase(),`key:${char}`,-total/2+keyW/2+i*(keyW+gap),.255-row*.105,keyW,.074,"#483066"));});
-    vrButton(keyboard,"SPACE","space",-.35,-.275,.28,.075,"#62417e");vrButton(keyboard,"ENTER","enter",-.03,-.275,.24,.075,"#62417e");vrButton(keyboard,"âŒ«", "backspace",.22,-.275,.16,.075,"#65405e");vrButton(keyboard,"â–¶ RUN", "run",.42,-.275,.18,.075,"#70419b");
-    const pinPanel=new T.Group();pinPanel.name="CODA_VR_PIN_PICKER";pinPanel.position.set(.72,1.42,-.92);pinPanel.rotation.y=-.12;pinPanel.visible=false;scene.add(pinPanel);
-    const pinBack=new T.Mesh(new T.BoxGeometry(1.28,1.12,.035),new T.MeshStandardMaterial({color:0x28183d,roughness:.72,metalness:.12}));pinPanel.add(pinBack);
-    const pinHeader=new T.Mesh(new T.PlaneGeometry(.94,.15),labelMaterial("PINOS DO ESP32",{width:900,height:120,bg:"#382450",accent:"#d4a4ff",font:54}));pinHeader.position.set(-.13,.46,.022);pinPanel.add(pinHeader);
-    vrButton(pinPanel,"FECHAR","pin:close",.49,.46,.20,.065,"#65405e",state.xrPinButtons);
-    const pinNames=[...window.CodaESPModel.left,...window.CodaESPModel.right];
-    pinNames.forEach((name,index)=>{const col=index%4,row=Math.floor(index/4),x=-.445+col*.30,y=.32-row*.085,reserved=window.CodaESPModel.reserved.has(name),label=reserved?`${window.CodaESPModel.label(name)} Â· FLASH`:window.CodaESPModel.label(name),button=vrButton(pinPanel,label,reserved?"pin:locked":`pin:select:${name}`,x,y,.27,.067,reserved?"#313840":"#442b65",state.xrPinButtons);button.userData.xrDisabled=reserved;});
-    state.vrEditorRoot=root;state.vrKeyboardRoot=keyboard;state.vrPinPanel=pinPanel;refreshVRScreen();
-  }
-
-  function refreshVRScreen(){
-    const view=state.vrScreen;if(!view)return;const {ctx,canvas,texture}=view;
-    ctx.fillStyle="#190e29";ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle="#35204f";ctx.fillRect(0,0,canvas.width,76);
-    ctx.fillStyle="#e6f4f8";ctx.font="700 34px DM Mono,monospace";ctx.fillText("sketch.ino â€¢ EDITOR VR",32,49);
-    ctx.fillStyle=state.vrRunning?"#d4a4ff":"#b9a0ce";ctx.textAlign="right";ctx.fillText(state.vrRunning?"â— EXECUTANDO":"â— PRONTO",canvas.width-32,49);ctx.textAlign="left";
-    const lines=state.vrCode.split("\n"),visible=lines.slice(-12);ctx.font="29px DM Mono,monospace";
-    visible.forEach((line,index)=>{const y=110+index*36;ctx.fillStyle="#54717c";ctx.fillText(String(lines.length-visible.length+index+1).padStart(2," "),22,y);ctx.fillStyle=/(void|pinMode|digitalWrite|delay|Serial)/.test(line)?"#8ee4ff":"#e8f2f5";ctx.fillText(line.slice(0,65),72,y,1160);});
-    ctx.fillStyle="#35204f";ctx.fillRect(0,540,canvas.width,80);ctx.fillStyle="#d4a4ff";ctx.font="23px DM Mono,monospace";ctx.fillText(state.vrEditorMessage,28,568,1220);
-    ctx.fillStyle="#9eb6be";ctx.font="22px DM Mono,monospace";ctx.fillText(`SERIAL: ${state.vrSerial.at(-1)||"aguardando execuÃ§Ã£o"}`.slice(0,76),28,602,1220);texture.needsUpdate=true;
-  }
-
-  function activateVRAction(action,frame){
-    const now=performance.now(),last=state.xrActionTimes.get(action)||0,delay=["pin:panel","pin:close","wire:toggle","board:lock"].includes(action)?350:65;if(now-last<delay)return;state.xrActionTimes.set(action,now);
-    if(action==="run")return runVRCode();if(action==="stop")return stopVRCode();
-    if(action==="rotate:left"||action==="rotate:right"){
-      state.rotation+=action==="rotate:left"?-Math.PI/12:Math.PI/12;
-      if(state.xrBoard)state.xrBoard.rotation.y=state.rotation;
-      refreshXRWires();state.vrEditorMessage="ESP32 GIRADO â€¢ 15Â°";refreshVRScreen();return;
-    }
-    if(action==="wire:toggle")return toggleWiring();
-    if(action==="wire:clear"){state.xrConnections=[];state.pendingTerminal=null;state.wiringMode=false;state.vrLitKey=null;refreshXRWires();state.vrEditorMessage="FIOS REMOVIDOS";refreshVRScreen();return;}
-    if(action==="wire:undo"){state.xrConnections.pop();state.pendingTerminal=null;state.wiringMode=false;state.vrLitKey=null;refreshXRWires();state.vrEditorMessage="ÃšLTIMA LIGAÃ‡ÃƒO DESFEITA";refreshVRScreen();return;}
-    if(action==="bring:table")return bringTableNear(frame);
-    if(action==="bring:keyboard")return bringPanelsNear(frame);
-    if(action==="board:lock")return toggleBoardLock();
-    if(action==="pin:panel")return toggleVRPinPanel(frame);
-    if(action==="program:toggle")return toggleVRProgram(frame);
-    if(action==="code:input")return openVRCodeInput();
-    if(action==="code:virtual")return toggleVRKeyboard();
-    if(action==="circuit:example")return loadVRExample();
-    if(action==="pin:close")return closeVRPinPanel();
-    if(action.startsWith("pin:select:"))return selectVRPin(action.slice("pin:select:".length));
-    if(action==="template:blink")state.vrCode=VR_DEMO;else if(action==="template:high")state.vrCode=VR_HIGH;else if(action==="template:low")state.vrCode=VR_LOW;else if(action==="template:clear")state.vrCode="";
-    else if(action==="add:led")return addComponent("led");else if(action==="add:resistor")return addComponent("resistor");
-    else if(action==="add:button")return addComponent("button");else if(action==="add:sensor")return addComponent("sensor");
-    else if(action==="space")state.vrCode+=" ";else if(action==="enter")state.vrCode+="\n";else if(action==="backspace")state.vrCode=state.vrCode.slice(0,-1);else if(action.startsWith("key:"))state.vrCode+=action.slice(4);
-    state.vrEditorMessage="CÃ“DIGO ALTERADO â€¢ TOQUE EM RUN";saveVRCode();
-  }
-
-  async function checkSupport(){
-    state.checked=true;
-    if(!window.isSecureContext){ state.supported=false; setStatus("HTTPS necessÃ¡rio","Abra o CODA por HTTPS no Ã³culos para liberar WebXR.","warn"); updateButtons(); return false; }
-    if(!navigator.xr){ state.supported=false; setStatus("WebXR nÃ£o encontrado","Neste dispositivo vocÃª ainda pode usar a visualizaÃ§Ã£o 3D normal.","warn"); updateButtons(); return false; }
-    try {
-      const [vr,ar]=await Promise.all([
-        navigator.xr.isSessionSupported("immersive-vr").catch(()=>false),
-        navigator.xr.isSessionSupported("immersive-ar").catch(()=>false)
-      ]);
-      state.support={vr,ar};state.supported=Boolean(state.support[state.experience]);
-    } catch { state.support={vr:false,ar:false};state.supported=false; }
-    const label=state.experience==="vr"?"ambiente virtual":"realidade aumentada";
-    setStatus(state.supported?`${label[0].toUpperCase()+label.slice(1)} disponÃ­vel`:`${label[0].toUpperCase()+label.slice(1)} nÃ£o disponÃ­vel`,state.supported?"Ã“culos detectado. Entre no ambiente quando estiver pronto.":`Este navegador nÃ£o oferece ${state.experience==="vr"?"WebXR immersive-vr":"WebXR immersive-ar"}.`,state.supported?"ok":"warn");
-    updateButtons(); return state.supported;
-  }
-
-  function updateButtons(){
-    const enter=$("#enterAR"); if(enter) enter.disabled=!state.supported || !!state.session;
-    const exit=$("#exitAR"); if(exit) exit.disabled=!state.session;
-    const mode=$("#arModeLabel"); if(mode) mode.textContent=state.mode==="lab"?"LaboratÃ³rio interativo":"Somente visualizaÃ§Ã£o";
-    const sel=$("#arSelectedLabel"); if(sel) sel.textContent=state.selected ? `Selecionado: ${state.selected}` : "Nenhum objeto selecionado";
-  }
-
-  // WebXR utiliza o mesmo construtor detalhado dos outros trÃªs ambientes.
-  function initGL(){
-    const T=window.THREE,model=window.CodaESPModel;
-    const canvas=document.createElement("canvas");canvas.id="xrCanvas";
-    const renderer=new T.WebGLRenderer({canvas,alpha:true,antialias:true});
-    renderer.outputEncoding=T.sRGBEncoding;renderer.xr.enabled=true;renderer.xr.setReferenceSpaceType("local-floor");
-    const scene=new T.Scene();scene.add(new T.HemisphereLight(0xe8d6ff,0x261036,1.8));
-    const light=new T.DirectionalLight(0xffffff,2);light.position.set(1,3,2);scene.add(light);
-    const board=model.createBoard();scene.add(board);
-    const reticle=new T.Mesh(new T.RingGeometry(.025,.029,32),new T.MeshBasicMaterial({color:0xb5ed9e,side:T.DoubleSide}));reticle.rotation.x=-Math.PI/2;reticle.visible=false;scene.add(reticle);
-    const room=new T.Group();
-    const floor=new T.Mesh(new T.PlaneGeometry(8,8),new T.MeshStandardMaterial({color:0x1c112d,roughness:.9}));floor.rotation.x=-Math.PI/2;room.add(floor);
-    const table=new T.Mesh(new T.BoxGeometry(1.8,.08,1),new T.MeshStandardMaterial({color:0x493366,roughness:.72}));table.position.set(0,.72,-1);room.add(table);
-    const back=new T.Mesh(new T.PlaneGeometry(8,3),new T.MeshStandardMaterial({color:0x160c25,roughness:1}));back.position.set(0,1.5,-3);room.add(back);
-    const title=new T.Mesh(new T.PlaneGeometry(2.35,.34),labelMaterial("CODA â€¢ LABORATÃ“RIO ESP32 VR",{width:1024,height:150,bg:"#27163e",accent:"#b68cff",font:54}));title.position.set(0,2.28,-2.94);room.add(title);
-    scene.add(room);
-    const wires=new T.Group();wires.name="CODA_VR_WIRES";scene.add(wires);
-    Object.assign(state,{canvas,gl:renderer.getContext(),xrRenderer:renderer,xrScene:scene,xrCamera:new T.PerspectiveCamera(),xrBoard:board,xrParts:new Map(),xrReticle:reticle,xrRoom:room,xrTable:table,xrWires:wires});
-    buildVREditor(scene);
-  }
-  const HAND_JOINTS=["wrist","thumb-metacarpal","thumb-phalanx-distal","thumb-tip","index-finger-metacarpal","index-finger-phalanx-proximal","index-finger-phalanx-distal","index-finger-tip","middle-finger-phalanx-proximal","middle-finger-tip","ring-finger-tip","pinky-finger-tip"];
-  function handMarkers(handedness){
-    if(state.xrHands.has(handedness))return state.xrHands.get(handedness);
-    const T=window.THREE,group=new T.Group();group.name=`MAO_${handedness}`;
-    const material=new T.MeshStandardMaterial({color:handedness==="left"?0x77dfff:0xb9ff3b,emissive:handedness==="left"?0x123f50:0x29460d,transparent:true,opacity:.82});
-    const joints=HAND_JOINTS.map(()=>{const marker=new T.Mesh(new T.SphereGeometry(.012,12,8),material);marker.visible=false;group.add(marker);return marker;});
-    state.xrScene.add(group);const result={group,joints};state.xrHands.set(handedness,result);return result;
-  }
-  function updateHands(frame){
-    const seen=new Set();for(const source of state.session?.inputSources||[]){if(!source.hand)continue;const side=source.handedness||"none";seen.add(side);const markers=handMarkers(side);
-      HAND_JOINTS.forEach((name,index)=>{const space=source.hand.get(name),pose=space&&frame.getJointPose?.(space,state.refSpace),marker=markers.joints[index];marker.visible=Boolean(pose);if(pose){const p=pose.transform.position;marker.position.set(p.x,p.y,p.z);marker.scale.setScalar(Math.max(.65,Number(pose.radius||.011)/.011));}});
-    }for(const [side,markers] of state.xrHands)markers.group.visible=seen.has(side);
-  }
-  function rayForSource(frame,source){const pose=source.targetRaySpace&&frame.getPose?.(source.targetRaySpace,state.refSpace);return pose?rayFromPose(pose):null;}
-  function handTip(frame,source){if(!source.hand||!frame.getJointPose)return null;const space=source.hand.get("index-finger-tip"),pose=space&&frame.getJointPose(space,state.refSpace);if(!pose)return null;const p=pose.transform.position;return [p.x,p.y,p.z];}
-  function buttonAtFinger(tip){
-    if(!tip||!state.xrScene)return null;const T=window.THREE,point=new T.Vector3(...tip);state.xrScene.updateMatrixWorld(true);
-    for(const button of interactiveVRButtons()){const local=button.worldToLocal(point.clone()),{width=.12,height=.07}=button.geometry.parameters||{};
-      if(Math.abs(local.x)<=width/2+.006&&Math.abs(local.y)<=height/2+.006&&local.z>=.003&&local.z<=.04)return button;
-    }
-    return null;
-  }
-  function updateHandTouches(frame){
-    const activeHands=new Set();for(const source of state.session?.inputSources||[]){if(!source.hand)continue;
-      const side=source.handedness||"none",touch=state.xrTouchStates.get(side)||{button:null,wireEndpoint:null},tip=handTip(frame,source);
-      activeHands.add(side);
-      if(!tip){if(performance.now()-(touch.lastSeen||0)>180){touch.button=null;touch.wireEndpoint=null;}state.xrTouchStates.set(side,touch);continue;}
-      touch.lastSeen=performance.now();
-      const button=buttonAtFinger(tip);
-      if(button&&button!==touch.button)activateVRAction(button.userData.xrAction,frame);
-      touch.button=button;
-      if(state.wiringMode){
-        const endpoint=terminalNearHand(tip);
-        touch.candidateCount=endpoint===touch.candidate?(touch.candidateCount||0)+1:1;touch.candidate=endpoint;
-        if(endpoint&&endpoint!==touch.wireEndpoint&&touch.candidateCount>=3){connectTerminal(endpoint);touch.wireEndpoint=endpoint;}
-        if(!endpoint)touch.wireEndpoint=null;
-      }else{touch.wireEndpoint=null;touch.candidate=null;touch.candidateCount=0;}
-      state.xrTouchStates.set(side,touch);
-    }for(const [side,touch] of state.xrTouchStates)if(!activeHands.has(side)&&performance.now()-(touch.lastSeen||0)>180){touch.button=null;touch.wireEndpoint=null;state.xrTouchStates.set(side,touch);}
-  }
-  function updateGrabbed(frame){
-    const grab=state.grabbed;if(!grab)return;const source=[...(state.session?.inputSources||[])].find(item=>item===grab.source);if(!source){state.grabbed=null;return;}
-    const tip=handTip(frame,source),ray=rayForSource(frame,source);let p=tip;
-    if(!p&&ray)p=[ray.origin[0]+ray.dir[0]*grab.distance,ray.origin[1]+ray.dir[1]*grab.distance,ray.origin[2]+ray.dir[2]*grab.distance];
-    if(!p)return;
-    if(grab.kind==="panel"){
-      grab.object.position.set(Math.max(-1.35,Math.min(1.35,p[0]+grab.offset.x)),Math.max(.72,Math.min(2.05,p[1]+grab.offset.y)),Math.max(-1.8,Math.min(.25,p[2]+grab.offset.z)));
-      return;
-    }
-    if(grab.object===state.board&&state.boardLocked)return;
-    grab.object.x=Math.max(-.75,Math.min(.75,p[0]+grab.offset.x));grab.object.y=.78;grab.object.z=Math.max(-1.42,Math.min(-.58,p[2]+grab.offset.z));grab.object.userPlaced=true;
-    if(state.xrConnections.length&&performance.now()-(state.lastWireRefresh||0)>90){state.xrWiresDirty=true;state.lastWireRefresh=performance.now();}
-  }
-  function renderFrame(time,frame){
-    if(!frame||!state.session)return;
-    if(state.hitSource){const hits=frame.getHitTestResults(state.hitSource);state.lastHit=hits[0]?.getPose(state.refSpace)?.transform.matrix||null;}
-    updateHands(frame);updateGrabbed(frame);
-    const T=window.THREE,model=window.CodaESPModel,board=state.xrBoard,sc=.065*state.scale;
-    board.visible=state.placed;board.position.set(state.board.x,state.board.y+.01*state.scale,state.board.z);board.rotation.y=state.rotation;board.scale.setScalar(sc);
-    const hardwareKey=JSON.stringify(state.hardware||{});if(hardwareKey!==state.vrHardwareKey){board.userData.setHardware(state.hardware||{});state.vrHardwareKey=hardwareKey;}
-    const live=new Set(state.components.map(item=>item.id));
-    for(const [id,part] of state.xrParts){if(!live.has(id)){state.xrScene.remove(part);model.dispose(part);state.xrParts.delete(id);}}
-    for(const item of state.components){
-      let part=state.xrParts.get(item.id);if(!part){
-        // Reutiliza a mesma peÃ§a e os mesmos dados visuais da bancada do PC.
-        part=model.createPart({...item,type:item.kind||item.type});
-        part.userData.id=String(item.id);
-        addVRComponentPinLabels(part);
-        state.xrScene.add(part);state.xrParts.set(item.id,part);
-      }
-      part.visible=state.placed;
-      part.position.set(item.x,item.y+.008,item.z);
-      part.rotation.y=-Number(item.rotation||0)*Math.PI/180;
-      part.scale.setScalar(.065*Math.max(.5,Math.min(1.8,Number(item.scale||1))));
-    }
-    state.xrScene.updateMatrixWorld(true);
-    updateHandTouches(frame);
-    if(state.xrWiresDirty)refreshXRWires();
-    if(state.hardware?.outputs){
-      const circuit={components:state.components.map(item=>({...item,type:item.kind||item.type})),wires:state.xrConnections};
-      const key=JSON.stringify([state.hardware.outputs,state.xrConnections,circuit.components.map(item=>[item.id,item.pin,item.kind])]);
-      if(key!==state.vrLitKey){state.vrLitKey=key;let lit={};try{lit=window.CodaARLabCore?.simulateLedStates?.(circuit,state.hardware.outputs)||{};}catch{}
-        for(const part of state.xrParts.values())part.userData.setActive(Boolean(lit[part.userData.id]));}
-    }else if(state.vrLitKey!==null){state.vrLitKey=null;for(const part of state.xrParts.values())part.userData.setActive(false);}
-    const reticle=state.xrReticle;reticle.visible=state.experience==="ar"&&Boolean(state.lastHit);if(state.lastHit)reticle.position.set(state.lastHit[12],state.lastHit[13]+.001,state.lastHit[14]);
-    if(state.xrCircuit){
-      const group=state.xrCircuit;group.visible=state.placed;group.position.copy(board.position);group.rotation.y=board.rotation.y;group.scale.copy(board.scale);
-      const snapshot=state.xrCircuitSnapshot;const lit=window.CodaARLabCore.simulateLedStates(snapshot,state.hardware?.outputs||{});
-      group.children.forEach(part=>part.userData.setActive?.(Boolean(lit[part.userData.id])));
-    }
-    state.xrRenderer.render(state.xrScene,state.xrCamera);
-  }
-  function importPrototype(){
-    const snapshot=window.CodaCircuit3D.renderer?.snapshot;
-    if(!snapshot?.components?.length){toast("Adicione e conecte componentes no Programador 3D primeiro.");return;}
-    state.xrCircuitSnapshot=structuredClone({components:snapshot.components,wires:snapshot.wires});
-    if(state.xrCircuit){state.xrScene?.remove(state.xrCircuit);window.CodaESPModel.dispose(state.xrCircuit);}
-    const T=window.THREE,model=window.CodaESPModel,group=new T.Group();state.xrCircuit=group;
-    for(const item of snapshot.components){const part=model.createPart(item);part.userData.id=String(item.id);part.position.set((item.x-50)/12,0,(item.y-50)/12);part.rotation.y=-Number(item.rotation||0)*Math.PI/180;part.scale.setScalar(Number(item.scale||1));group.add(part);}
-    group.updateMatrixWorld(true);
-    const endpoint=value=>{const [id,pin]=String(value).split(':');if(id==='ESP32')return model.pinPoint(pin);const part=group.children.find(item=>item.userData.id===id);const p=part?.userData.terminals?.[pin];return p?part.localToWorld(p.clone()):null;};
-    snapshot.wires.forEach((wire,i)=>{const [a,b]=Array.isArray(wire)?wire:[wire.a,wire.b],p=endpoint(a),q=endpoint(b);if(p&&q)model.wire(group,p,q,wire.color||['#ffc45b','#6bd1ee','#ed7c83'][i%3]);});
-    state.xrScene?.add(group);toast("Circuito do Programador 3D preparado para a RA.");
-  }
-
-  function rayFromPose(pose){ const m=pose.transform.matrix; return { origin:[m[12],m[13],m[14]], dir:[-m[8],-m[9],-m[10]] }; }
-  function hitObject(ray){
-    if(!ray)return null;
-    const objs=[...(state.mode==="lab"?state.components:[]), ...(state.placed?[state.board]:[])]; let best=null,bestT=1e9;
-    for(const o of objs){ const dx=o.x-ray.origin[0],dy=o.y-ray.origin[1],dz=o.z-ray.origin[2]; const t=dx*ray.dir[0]+dy*ray.dir[1]+dz*ray.dir[2]; if(t<0) continue; const px=ray.origin[0]+ray.dir[0]*t,py=ray.origin[1]+ray.dir[1]*t,pz=ray.origin[2]+ray.dir[2]*t; const d=Math.hypot(o.x-px,o.y-py,o.z-pz); const radius=o.kind==="board"?.16:.075; if(d<radius&&t<bestT){best=o;bestT=t;} }
-    return best;
-  }
-  function hitObjectNear(point){
-    if(!point)return null;const objects=[...state.components,state.board];let best=null,distance=.16;
-    for(const object of objects){const d=Math.hypot(object.x-point[0],object.y-point[1],object.z-point[2]);if(d<distance){best=object;distance=d;}}return best;
-  }
-  function hitVRButton(ray,tip){
-    const T=window.THREE,buttons=interactiveVRButtons();if(!buttons.length)return null;
-    state.xrScene?.updateMatrixWorld(true);
-    if(ray){const caster=new T.Raycaster(new T.Vector3(...ray.origin),new T.Vector3(...ray.dir).normalize(),0,4);const hit=caster.intersectObjects(buttons,false)[0]?.object;if(hit)return hit;}
-    if(tip){const p=new T.Vector3(...tip);let best=null,distance=.075;state.xrScene.updateMatrixWorld(true);for(const button of buttons){const d=button.getWorldPosition(new T.Vector3()).distanceTo(p);if(d<distance){best=button;distance=d;}}return best;}
-    return null;
-  }
-  function interactiveVRButtons(){return [...state.xrButtons,...state.xrPinButtons].filter(button=>{if(button.userData.xrDisabled||button.parent===state.vrPinPanel&&performance.now()<(state.pinPanelReadyAt||0))return false;for(let node=button;node;node=node.parent)if(!node.visible)return false;return true;});}
-  function terminalFromHit(hit){
-    const T=window.THREE,model=window.CodaESPModel,board=state.xrBoard;
-    let node=hit.object;while(node&&node!==board&&!state.xrParts.has(String(node.userData?.id||"")))node=node.parent;
-    if(node===board){
-      const local=board.worldToLocal(hit.point.clone());let best=null,distance=.22;
-      for(const name of [...model.left,...model.right]){const point=model.pinPoint(name),d=point.distanceTo(local);if(d<distance){best=name;distance=d;}}
-      return best?`ESP32:${best}`:null;
-    }
-    const part=node&&state.xrParts.get(String(node.userData?.id||""));if(!part)return null;
-    const local=part.worldToLocal(hit.point.clone());let best=null,distance=.42;
-    for(const [name,point] of Object.entries(part.userData.terminals||{})){const d=point.distanceTo(local);if(d<distance){best=name;distance=d;}}
-    return best?`${part.userData.id}:${best}`:null;
-  }
-  function terminalNearHand(tip){
-    if(!tip)return null;const T=window.THREE,model=window.CodaESPModel,point=new T.Vector3(...tip);let best=null,distance=.028;
-    state.xrScene.updateMatrixWorld(true);
-    for(const name of [...model.left,...model.right]){const p=state.xrBoard.localToWorld(model.pinPoint(name).clone()),d=p.distanceTo(point);if(d<distance){best=`ESP32:${name}`;distance=d;}}
-    for(const part of state.xrParts.values())for(const [name,local] of Object.entries(part.userData.terminals||{})){const d=part.localToWorld(local.clone()).distanceTo(point);if(d<distance){best=`${part.userData.id}:${name}`;distance=d;}}
-    return best;
-  }
-  function addVRComponentPinLabels(part){
-    const T=window.THREE;for(const [name,p] of Object.entries(part.userData.terminals||{})){
-      const tag=new T.Mesh(new T.PlaneGeometry(.32,.105),labelMaterial(name,{width:256,height:96,bg:"#102933",accent:"#ffc45b",font:50}));
-      tag.position.set(p.x,p.y+.22,p.z+.045);tag.renderOrder=3;part.add(tag);
-    }
-  }
-  function pickWireTerminal(ray,tip){
-    const T=window.THREE;if(tip){const near=terminalNearHand(tip);if(near)return near;}
-    if(!ray)return null;const caster=new T.Raycaster(new T.Vector3(...ray.origin),new T.Vector3(...ray.dir).normalize(),0,2);
-    const hits=caster.intersectObject(state.xrBoard,true);for(const part of state.xrParts.values())hits.push(...caster.intersectObject(part,true));
-    hits.sort((a,b)=>a.distance-b.distance);for(const hit of hits){const endpoint=terminalFromHit(hit);if(endpoint)return endpoint;}
-    return null;
-  }
-  function endpointWorld(value){
-    const [owner,terminal]=String(value||"").split(":");
-    if(owner==="ESP32"){const local=window.CodaESPModel.pinPoint(terminal);return local?state.xrBoard.localToWorld(local.clone()):null;}
-    const part=state.xrParts.get(owner),local=part?.userData.terminals?.[terminal];return local?part.localToWorld(local.clone()):null;
-  }
-  function refreshXRWires(){
-    const group=state.xrWires;if(!group||!state.xrScene)return;const T=window.THREE,model=window.CodaESPModel;
-    for(const child of [...group.children]){group.remove(child);model.dispose(child);}
-    state.xrScene.updateMatrixWorld(true);
-    state.xrConnections.forEach(([a,b],index)=>{
-      const start=endpointWorld(a),end=endpointWorld(b);if(!start||!end)return;
-      const lift=Math.max(start.y,end.y)+.035,curve=new T.CubicBezierCurve3(start,new T.Vector3(start.x,lift,start.z),new T.Vector3(end.x,lift,end.z),end);
-      const mesh=new T.Mesh(new T.TubeGeometry(curve,18,.0028,6,false),new T.MeshStandardMaterial({color:["#ffc45b","#6bd1ee","#ed7c83","#9acd82"][index%4],metalness:.12,roughness:.38}));mesh.castShadow=true;group.add(mesh);
-    });
-    state.xrWiresDirty=false;
-  }
-  function toggleWiring(){state.wiringMode=!state.wiringMode;state.pendingTerminal=null;state.vrEditorMessage=state.wiringMode?"FIACAO ATIVA â€¢ TOQUE EM DOIS TERMINAIS":"FIACAO PAUSADA";refreshVRScreen();}
-  function toggleBoardLock(){
-    state.boardLocked=!state.boardLocked;
-    const label=state.boardLocked?"LIBERAR ESP":"FIXAR ESP";
-    for(const button of state.xrButtons.filter(item=>item.userData.xrAction==="board:lock")){
-      const face=button.children[0],old=face?.material;if(!face)continue;
-      face.material=labelMaterial(label,{width:384,height:112,bg:state.boardLocked?"#664183":"#513278",accent:"#dbb0ff",font:40});old?.map?.dispose?.();old?.dispose?.();button.material.color.set(state.boardLocked?"#664183":"#513278");
-    }
-    state.vrEditorMessage=state.boardLocked?"ESP32 FIXO NA BANCADA â€¢ TOQUE LIBERAR PARA MOVER":"ESP32 LIBERADO â€¢ ARRASTE PARA POSICIONAR";refreshVRScreen();
-  }
-  function toggleVRPinPanel(frame){
-    state.vrPinPanelOpen=!state.vrPinPanelOpen;if(state.vrPinPanel)state.vrPinPanel.visible=state.vrPinPanelOpen;
-    if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=state.vrProgramOpen&&state.vrKeyboardOpen&&!state.vrPinPanelOpen;
-    state.pinPanelReadyAt=performance.now()+320;
-    if(state.vrPinPanelOpen)bringPinPanelNear(frame);
-    state.vrEditorMessage=state.vrPinPanelOpen?"PINOS ABERTOS â€¢ ESCOLHA UM OU TOQUE FECHAR":"PINOS FECHADOS â€¢ TECLADO DISPONÃVEL";refreshVRScreen();
-  }
-  function closeVRPinPanel(){state.vrPinPanelOpen=false;if(state.vrPinPanel)state.vrPinPanel.visible=false;if(state.vrKeyboardRoot)state.vrKeyboardRoot.visible=state.vrProgramOpen&&state.vrKeyboardOpen;state.vrEditorMessage="PINOS FECHADOS â€¢ TOQUE PROGRAMAR";refreshVRScreen();}
-  function bringPinPanelNear(frame){
-    const pose=frame?.getViewerPose?.(state.refSpace),m=pose?.transform?.matrix;if(!m||!state.vrPinPanel)return;
-    const fx=-m[8],fz=-m[10],len=Math.hypot(fx,fz)||1,rx=m[0],rz=m[2];state.vrPinPanel.position.set(m[12]+fx/len*.82+rx*.42,m[13]-.04,m[14]+fz/len*.82+rz*.42);state.vrPinPanel.rotation.set(0,Math.atan2(-fx/len,-fz/len),0);
-  }
-  function selectVRPin(name){
-    if(!window.CodaESPModel.pinPoint(name)||window.CodaESPModel.reserved.has(name)){state.vrEditorMessage=`PINO INDISPONÃVEL: ${name}`;refreshVRScreen();return;}
-    if(!state.wiringMode){state.wiringMode=true;state.pendingTerminal=null;}
-    for(const button of state.xrPinButtons)if(button.userData.xrAction?.startsWith("pin:select:"))button.material.color.set(button.userData.xrAction===`pin:select:${name}`?"#7651aa":"#442b65");
-    connectTerminal(`ESP32:${name}`);
-    if(state.wiringMode)state.vrEditorMessage=`ESP32 ${window.CodaESPModel.label(name)} SELECIONADO â€¢ TOQUE NO PIN NOMEADO DO COMPONENTE`;
-    refreshVRScreen();
-  }
-  function connectTerminal(endpoint){
-    if(!endpoint)return false;
-    if(!state.pendingTerminal){state.pendingTerminal=endpoint;state.vrEditorMessage=`TERMINAL: ${endpoint} â€¢ ESCOLHA O SEGUNDO`;refreshVRScreen();return true;}
-    if(state.pendingTerminal===endpoint){state.pendingTerminal=null;state.vrEditorMessage="ESCOLHA DOIS TERMINAIS DIFERENTES";refreshVRScreen();return true;}
-    const first=state.pendingTerminal;
-    if(state.xrConnections.some(([a,b])=>a===first&&b===endpoint||a===endpoint&&b===first)){
-      state.pendingTerminal=null;state.wiringMode=false;state.vrEditorMessage="ESTES TERMINAIS JÃ ESTÃƒO LIGADOS";refreshVRScreen();return false;
-    }
-    state.xrConnections.push([first,endpoint]);
-    state.pendingTerminal=null;state.wiringMode=false;state.xrWiresDirty=true;refreshXRWires();
-    inferVRLedPins();
-    state.vrEditorMessage=`FIO LIGADO â€¢ ${endpoint}`;refreshVRScreen();return true;
-  }
-  function inferVRLedPins(){
-    const core=window.CodaARLabCore;if(!core?.simulateLedStates)return;
-    const pins=[0,1,2,3,4,5,12,13,14,15,16,17,18,19,21,22,23,25,26,27,32,33],outputs=Object.fromEntries(pins.map(pin=>[pin,true]));
-    for(const led of state.components.filter(item=>item.kind==="led"))for(const pin of pins){
-      const components=state.components.map(item=>({...item,type:item.kind||item.type,...(item.id===led.id?{pin:`GPIO${pin}`}:{})}));
-      const lit=core.simulateLedStates({components,wires:state.xrConnections},outputs);
-      if(lit[led.id]){led.pin=`GPIO${pin}`;break;}
-    }
-  }
-  function findPanelHit(ray){
-    if(!ray)return null;const T=window.THREE,roots=[state.vrEditorRoot,state.vrKeyboardRoot,state.vrPinPanel].filter(root=>root?.visible),caster=new T.Raycaster(new T.Vector3(...ray.origin),new T.Vector3(...ray.dir).normalize(),0,3),hit=caster.intersectObjects(roots,true)[0];if(!hit)return null;
-    let root=hit.object;while(root&&root!==state.vrEditorRoot&&root!==state.vrKeyboardRoot&&root!==state.vrPinPanel)root=root.parent;
-    return root?{root,point:hit.point}:null;
-  }
-  function findPanelNear(tip){
-    if(!tip)return null;const T=window.THREE,point=new T.Vector3(...tip);
-    for(const root of [state.vrEditorRoot,state.vrKeyboardRoot,state.vrPinPanel]){
-      if(!root?.visible)continue;const local=root.worldToLocal(point.clone());
-      const width=root===state.vrEditorRoot?1.62:root===state.vrKeyboardRoot?1.22:1.28;
-      const height=root===state.vrEditorRoot ? 1.68 : root===state.vrKeyboardRoot ? .66 : 1.12;
-      if(Math.abs(local.x)<width/2&&Math.abs(local.y)<height/2&&local.z>-.03&&local.z<.10)return {root,point};
-    }return null;
-  }
-  function bringTableNear(frame){
-    const pose=frame?.getViewerPose?.(state.refSpace),matrix=pose?.transform?.matrix;if(!matrix||!state.xrTable)return;
-    const forwardX=-matrix[8],forwardZ=-matrix[10],length=Math.hypot(forwardX,forwardZ)||1,px=matrix[12],pz=matrix[14],targetX=px+forwardX/length*.82,targetZ=pz+forwardZ/length*.82;
-    const dx=targetX-state.xrTable.position.x,dz=targetZ-state.xrTable.position.z;state.xrTable.position.x=targetX;state.xrTable.position.z=targetZ;
-    state.board.x+=dx;state.board.z+=dz;for(const component of state.components){component.x+=dx;component.z+=dz;}
-    state.xrWiresDirty=true;state.vrEditorMessage="MESA TRAZIDA PARA PERTO DE VOCE";refreshVRScreen();
-  }
-  function bringPanelsNear(frame){
-    const pose=frame?.getViewerPose?.(state.refSpace),matrix=pose?.transform?.matrix;if(!matrix)return;
-    const fx=-matrix[8],fz=-matrix[10],length=Math.hypot(fx,fz)||1,forwardX=fx/length,forwardZ=fz/length,rightX=matrix[0],rightZ=matrix[2],px=matrix[12],py=matrix[13],pz=matrix[14],yaw=Math.atan2(-forwardX,-forwardZ);
-    if(state.vrEditorRoot){state.vrEditorRoot.position.set(px+forwardX*.78-rightX*.42,py-.04,pz+forwardZ*.78-rightZ*.42);state.vrEditorRoot.rotation.set(0,yaw,0);}
-    if(state.vrKeyboardRoot){state.vrKeyboardRoot.position.set(px+forwardX*.62+rightX*.43,py-.34,pz+forwardZ*.62+rightZ*.43);state.vrKeyboardRoot.rotation.set(-.12,yaw,0);}
-    if(state.vrDock&&state.vrProgramOpen)state.vrDock.position.set(px+forwardX*.80+rightX*.90,py+.28,pz+forwardZ*.80+rightZ*.90);
-    if(state.vrPinPanelOpen)bringPinPanelNear(frame);
-  }
-  function onSelectStart(event){
-    if(state.experience!=="vr"||state.mode!=="lab")return;
-    const frame=event.frame,source=event.inputSource,ray=rayForSource(frame,source),tip=handTip(frame,source),button=source.hand?buttonAtFinger(tip):hitVRButton(ray,null);
-    if(button){activateVRAction(button.userData.xrAction,frame);button.scale.set(.9,.9,.9);setTimeout(()=>button.scale.set(1,1,1),110);return;}
-    if(state.wiringMode){
-      const endpoint=pickWireTerminal(source.hand?null:ray,tip),side=source.handedness||"none",touch=state.xrTouchStates.get(side)||{button:null,wireEndpoint:null};
-      if(endpoint&&touch.wireEndpoint!==endpoint){connectTerminal(endpoint);if(source.hand){touch.wireEndpoint=endpoint;state.xrTouchStates.set(side,touch);}}
-      else if(!endpoint&&source.hand){touch.wireEndpoint=null;state.xrTouchStates.set(side,touch);}
-      else if(!endpoint){state.vrEditorMessage="TOQUE EM UM PIN OU TERMINAL";refreshVRScreen();}
-      return;
-    }
-    const panel=source.hand?findPanelNear(tip):findPanelHit(ray);
-    if(panel){const point=tip?new window.THREE.Vector3(...tip):panel.point,distance=ray?new window.THREE.Vector3(...ray.origin).distanceTo(panel.point):.65;state.grabbed={source,object:panel.root,kind:"panel",distance,offset:panel.root.position.clone().sub(point)};state.vrEditorMessage="PAINEL PRESO â€¢ MOVA E SOLTE A PINCA";refreshVRScreen();return;}
-    const object=hitObjectNear(tip)||hitObject(ray);if(!object)return;
-    if(object===state.board&&state.boardLocked){state.vrEditorMessage="ESP32 FIXO â€¢ TOQUE EM LIBERAR ESP PARA MOVER";refreshVRScreen();return;}
-    const grabDistance=tip?.length?0.12:(ray?Math.max(.18,Math.hypot(object.x-ray.origin[0],object.y-ray.origin[1],object.z-ray.origin[2])):.72);
-    const p=tip||(ray?[ray.origin[0]+ray.dir[0]*grabDistance,ray.origin[1]+ray.dir[1]*grabDistance,ray.origin[2]+ray.dir[2]*grabDistance]:[object.x,object.y,object.z]);
-    state.grabbed={source,object,distance:grabDistance,offset:{x:object.x-p[0],z:object.z-p[2]}};state.selected=object.id;state.vrEditorMessage=`âœ‹ ${object.id} PRESO Ã€ MÃƒO`;refreshVRScreen();updateButtons();
-  }
-  function onSelectEnd(event){
-    if(!state.grabbed||state.grabbed.source!==event.inputSource)return;const grab=state.grabbed,object=grab.object;
-    if(grab.kind!=="panel")object.y=.78;
-    state.grabbed=null;state.selected=null;state.xrWiresDirty=true;
-    state.vrEditorMessage=grab.kind==="panel"?"PAINEL POSICIONADO â€¢ TOQUE PARA USAR":`${object.id} POSICIONADO â€¢ PRONTO`;refreshVRScreen();updateButtons();
-  }
-
-  function placeAtHit(obj){ if(!state.lastHit) return false; obj.x=state.lastHit[12]; obj.y=state.lastHit[13]; obj.z=state.lastHit[14]; return true; }
-  function placeAlongRay(obj,ray,distance=.85){obj.x=ray.origin[0]+ray.dir[0]*distance;obj.y=ray.origin[1]+ray.dir[1]*distance;obj.z=ray.origin[2]+ray.dir[2]*distance;obj.userPlaced=true;return true;}
-  function onSelect(event){
-    if(state.experience==="vr")return;
-    const frame=event.frame, source=event.inputSource; const rayPose=frame.getPose(source.targetRaySpace,state.refSpace); const hit=rayPose?hitObject(rayFromPose(rayPose)):null;
-    const ray=rayPose?rayFromPose(rayPose):null;
-    if(!state.placed){ if(placeAtHit(state.board)){ state.placed=true; arrangeComponents(); setStatus("ESP32 posicionado","A placa ficou ancorada nesta sessÃ£o. Aponte/pinÃ§e para interagir.","ok"); } return; }
-    if(state.mode==="view"){ if(placeAtHit(state.board)) toast("ESP32 reposicionado na bancada"); return; }
-    if(hit){ state.selected=hit.id; setStatus("Objeto selecionado",`${hit.id}. Aponte para outro ponto da bancada e pinÃ§e/aperte novamente para mover.`,"ok"); updateButtons(); return; }
-    if(state.selected){ const obj=state.selected==="ESP32"?state.board:state.components.find(x=>x.id===state.selected); const moved=obj&&(state.experience==="ar"?placeAtHit(obj):(ray&&placeAlongRay(obj,ray))); if(moved){ toast(`${obj.id} movido`); state.selected=null; updateButtons(); } }
-  }
-
-  function arrangeComponents(){ if(!state.placed) return; state.components.forEach((o,i)=>{ if(o.userPlaced)return; const vr=state.experience==="vr";o.x=state.board.x+(vr ? .27 : .10)+(i%2)*(vr ? .18 : .055);o.y=state.board.y;o.z=state.board.z+(vr ? 0 : -.03)+Math.floor(i/2)*(vr ? .14 : .06); }); }
-  function loadVRExample(){
-    const example=window.CodaARLabCore?.makeExample?.(2);if(!example)return;
-    state.vrRuntime?.stop?.();state.components=example.components.map(item=>({id:item.id,kind:item.type,pin:item.pin,ohms:item.ohms,x:0,y:.78,z:-1,userPlaced:false}));
-    arrangeComponents();state.xrConnections=example.wires.map(pair=>[...pair]);state.vrCode=example.code;
-    state.pendingTerminal=null;state.wiringMode=false;state.vrLitKey=null;state.xrWiresDirty=true;
-    renderComponentList();state.vrEditorMessage="EXEMPLO PRONTO â€¢ TOQUE RUN PARA SIMULAR";saveVRCode();
-  }
-  function addComponent(kind){ const names={led:"LED",resistor:"R",button:"BTN",sensor:"HC"},id=`${names[kind]||"P"}${state.components.filter(x=>x.kind===kind).length+1}`; state.components.push({id,kind,pin:kind==="led"?"GPIO2":undefined,x:state.board.x+0.27,y:state.board.y,z:state.board.z,connected:false,userPlaced:false}); arrangeComponents();state.xrWiresDirty=true;state.vrLitKey=null; renderComponentList(); state.vrEditorMessage=`${id} ADICIONADO â€¢ AGARRE COM A MÃƒO`;refreshVRScreen();toast(`${kind} adicionado ao laboratÃ³rio`); }
-  function renderComponentList(){ const el=$("#arComponentList"); if(el) el.innerHTML=state.components.length?state.components.map(x=>`<span>${x.kind==="led"?"ğŸ’¡":"â–°"} ${x.id}</span>`).join(""):"<small>Nenhum componente adicionado.</small>"; }
-
-  async function enterAR(options={}){
-    if(state.session) return true;
-    state.device=options.device||"headset";
-    state.experience=options.experience||$("[data-xr-experience].active")?.dataset.xrExperience||state.experience||"vr";
-    const status=state.device==="mobile"?setMobileStatus:setStatus;
-    state.mode=state.experience==="vr"?"lab":(options.mode||$("[data-ar-mode].active")?.dataset.arMode||"view"); state.selected=null; state.placed=false;
-    $$('[data-ar-mode]').forEach(btn=>btn.classList.toggle("active",btn.dataset.arMode===state.mode));
-    const tools=$("#arLabTools"); if(tools) tools.hidden=state.mode!=="lab";
-
-    // A chamada de requestSession precisa acontecer diretamente a partir do clique
-    // do usuÃ¡rio. Por isso nÃ£o aguardamos checkSupport() antes de solicitar a RA.
-    if(!window.isSecureContext){
-      state.supported=false; state.checked=true;
-      status("HTTPS necessÃ¡rio",state.device==="mobile"?"Abra o CODA por HTTPS para liberar a cÃ¢mera/RA do celular.":"Abra o CODA por HTTPS no Ã³culos para iniciar a realidade aumentada.","warn");
-      updateButtons(); return false;
-    }
-    if(!navigator.xr){
-      state.supported=false; state.checked=true;
-      status("WebXR nÃ£o encontrado",state.device==="mobile"?"O navegador nÃ£o oferece WebXR. O CODA pode usar o modo cÃ¢mera como alternativa.":"Abra esta pÃ¡gina no navegador do Ã³culos compatÃ­vel com WebXR.","warn");
-      updateButtons(); return false;
-    }
-
-    try{
-      status(state.experience==="vr"?"Abrindo ambiente virtual":"Abrindo realidade aumentada",state.device==="mobile"?"Autorize a cÃ¢mera/RA. Depois aponte o celular para a mesa.":state.experience==="vr"?"Coloque o Ã³culos e autorize a sessÃ£o WebXR.":"Autorize o passthrough se o Ã³culos pedir. Depois olhe para a bancada.");
-      if(!state.gl) initGL();
-      const sessionType=state.experience==="vr"?"immersive-vr":"immersive-ar";
-      const opts=state.experience==="vr"
-        ?{requiredFeatures:["local-floor"],optionalFeatures:["hand-tracking","bounded-floor"]}
-        :{requiredFeatures:["local-floor"],optionalFeatures:["hit-test","hand-tracking","dom-overlay"],domOverlay:{root:$("#espARPanel")}};
-      // IMPORTANTE: requestSession Ã© chamado antes de qualquer await para preservar
-      // a ativaÃ§Ã£o transitÃ³ria gerada pelo clique no botÃ£o ğŸ¥½.
-      const sessionPromise=navigator.xr.requestSession(sessionType,opts);
-      const session=await sessionPromise; state.session=session; state.supported=true; state.checked=true;
-      await state.xrRenderer.xr.setSession(session);
-    state.xrScene.background=state.experience==="vr"?new window.THREE.Color(0x140a23):null;
-      if(state.xrRoom)state.xrRoom.visible=state.experience==="vr";
-      if(state.experience==="vr"){
-        state.placed=true;Object.assign(state.board,{x:0,y:.78,z:-1});
-        if(!state.components.length){addComponent("led");addComponent("resistor");}
-        arrangeComponents();
-        try{state.vrCode=localStorage.getItem("coda-vr-sketch-v146")??$("#espFirmwareCode")?.value??VR_DEMO;}catch{state.vrCode=VR_DEMO;}
-        state.boardLocked=false;state.vrProgramOpen=false;state.vrKeyboardOpen=false;state.vrEditorMessage="PRONTO â€¢ TOQUE PROGRAMAR PARA ABRIR O EDITOR";refreshVRScreen();
-      }
-      if(state.xrCircuitSnapshot)importPrototype();
-      state.refSpace=state.xrRenderer.xr.getReferenceSpace(); state.viewerSpace=await session.requestReferenceSpace("viewer");
-      if(state.experience==="ar"){try{ state.hitSource=await session.requestHitTestSource({space:state.viewerSpace}); }catch{ state.hitSource=null; }}else state.hitSource=null;
-      session.addEventListener("selectstart",onSelectStart);session.addEventListener("selectend",onSelectEnd);session.addEventListener("select",onSelect);session.addEventListener("end",onEnd);
-      status(state.experience==="vr"?"LaboratÃ³rio VR interativo iniciado":"RA iniciada",state.device==="mobile"?"Aponte para a mesa e toque na tela para posicionar o ESP32.":state.experience==="vr"?"Arraste a placa e toque FIXAR ESP. Use PINO ESP para escolher o GPIO; toque num terminal nomeado do componente para ligar o fio."
-        +" Toque as letras com o indicador e use RUN para executar.":"Olhe para a bancada e faÃ§a uma pinÃ§a/clique para posicionar o ESP32.","ok"); updateButtons(); state.xrRenderer.setAnimationLoop(renderFrame);
-      return true;
-    }catch(error){
-      console.error(error);
-      state.checked=true; state.supported=false;
-      const denied=error?.name==="NotAllowedError";
-      status(denied?"PermissÃ£o necessÃ¡ria":"NÃ£o foi possÃ­vel iniciar o WebXR",denied?(state.device==="mobile"?"Autorize a cÃ¢mera/RA no navegador e tente novamente.":"Autorize o WebXR no navegador do Ã³culos e tente novamente."):(error?.message||"O navegador recusou a sessÃ£o WebXR."),"warn");
-      try{await state.session?.end();}catch{}
-      cleanup(); return false;
-    }
-  }
-  async function exitAR(){ try{ await state.session?.end(); }catch{} }
-  function cleanup(){ state.hitSource?.cancel?.(); state.hitSource=null;state.grabbed=null;state.xrTouchStates.clear();state.xrActionTimes.clear();state.wiringMode=false;state.pendingTerminal=null;state.boardLocked=false;state.vrPinPanelOpen=false;state.vrProgramOpen=false;state.vrKeyboardOpen=false;state.vrSystemInput?.remove();state.vrSystemInput=null;state.vrRuntime?.stop?.();state.vrRuntime=null;state.vrRunning=false;state.hardware=null;state.vrHardwareKey=null;state.vrLitKey=null;state.lastWireRefresh=0; state.session=null; state.refSpace=null; state.viewerSpace=null; state.lastHit=null; state.selected=null; state.xrRenderer?.setAnimationLoop(null); if(state.xrScene)window.CodaESPModel?.dispose(state.xrScene);state.xrRenderer?.dispose();state.xrRenderer=null;state.xrScene=null;state.xrCircuit=null;state.xrWires=null;state.xrTable=null;state.xrButtons=[];state.xrPinButtons=[];state.xrHands.clear();state.vrScreen=null;state.vrEditorRoot=null;state.vrKeyboardRoot=null;state.vrPinPanel=null;state.vrDock=null;state.vrLockButton=null;state.canvas?.remove(); state.canvas=null; state.gl=null; updateButtons(); }
-  function onEnd(){ cleanup(); setStatus("SessÃ£o encerrada","VocÃª pode entrar novamente quando quiser.",state.supported?"ok":"warn"); }
-
-  function clampMobile(value,min,max){return Math.max(min,Math.min(max,value));}
-  function syncMobileLock(){
-    const m=state.mobile,button=$("#mobileARLock"),help=$("#mobileARViewHelp"),hint=$("#mobileAROverlayHint");
-    if(button){button.disabled=!m.placed;button.setAttribute("aria-pressed",String(m.locked));button.textContent=m.locked?"ğŸ”’ PosiÃ§Ã£o fixa":"ğŸ”“ Fixar posiÃ§Ã£o";button.classList.toggle("is-locked",m.locked);}
-    if(help)help.textContent=!m.placed?"Toque na imagem da mesa para posicionar o ESP32.":m.locked?"Placa fixa nesta imagem. Arraste LEDs e componentes diretamente no modelo 3D; use ConexÃµes para ligar fios.":"Arraste a placa para o local desejado e toque em Fixar posiÃ§Ã£o. Componentes tambÃ©m podem ser arrastados no 3D.";
-    if(hint)hint.textContent=!m.placed?"Toque na imagem para colocar o ESP32":m.locked?"PosiÃ§Ã£o fixa na tela â€¢ placa e componentes virtuais":"Arraste para mover â€¢ fixe quando terminar";
-  }
-  function updateMobileBoard(){
-    const board=$("#mobileARCanvas"); if(!board) return;
-    const m=state.mobile;
-    board.style.left=`${m.x}%`; board.style.top=`${m.y}%`;
-    board.style.transform=`translate(-50%,-50%) scale(${m.scale})`;
-    m.renderer?.setView?.({pitch:56,yaw:m.rotation,scale:1});
-    syncMobileLock();
-  }
-
-  function resetMobileBoard(){
-    Object.assign(state.mobile,{placed:false,locked:false,x:50,y:58,scale:1,rotation:0,dragging:false,pinchDistance:0});
-    const board=$("#mobileARCanvas"), reticle=$("#mobileARReticle"), hint=$("#mobileAROverlayHint");
-    if(board) board.hidden=true;
-    if(reticle) reticle.hidden=false;
-    if(hint) hint.textContent="Toque na mesa para colocar o ESP32";
-    updateMobileBoard();
-  }
-
-  function mobilePoint(event){
-    const t=event.touches?.[0]||event.changedTouches?.[0]||event;
-    const stage=$("#mobileARStage"), r=stage?.getBoundingClientRect();
-    if(!r) return null;
-    return {x:Math.max(0,Math.min(100,(t.clientX-r.left)/r.width*100)),y:Math.max(0,Math.min(100,(t.clientY-r.top)/r.height*100)),clientX:t.clientX,clientY:t.clientY};
-  }
-
-  function placeMobileFallback(event){
-    const p=mobilePoint(event); if(!p) return;
-    const m=state.mobile, board=$("#mobileARCanvas"), reticle=$("#mobileARReticle"), hint=$("#mobileAROverlayHint");
-    if(!m.placed){
-      m.placed=true; m.x=p.x; m.y=p.y;
-      if(board) board.hidden=false; if(reticle) reticle.hidden=true;
-      syncMobileLock();
-      updateMobileBoard();
-    }
-  }
-
-  function touchDistance(event){
-    if(!event.touches || event.touches.length<2)return 0;
-    return Math.hypot(event.touches[0].clientX-event.touches[1].clientX,event.touches[0].clientY-event.touches[1].clientY);
-  }
-  function startMobileDrag(event){
-    const m=state.mobile;
-    if(!m.placed)return;
-    if(event.touches?.length>=2){m.dragging=false;m.pinchDistance=touchDistance(event);return;}
-    if(m.locked || m.renderer?.pickComponentAt?.(event))return;
-    event.preventDefault();
-    const p=mobilePoint(event); if(!p)return;
-    m.dragging=true;
-    m.dragDx=p.x-m.x;m.dragDy=p.y-m.y;
-  }
-  function moveMobileDrag(event){
-    const m=state.mobile;
-    if(event.touches?.length>=2){
-      const dist=touchDistance(event);
-      if(m.pinchDistance&&dist){event.preventDefault();m.scale=clampMobile(m.scale*dist/m.pinchDistance,.55,2.2);m.pinchDistance=dist;updateMobileBoard();}
-      m.dragging=false;return;
-    }
-    if(!m.dragging||m.locked)return;
-    event.preventDefault();
-    const p=mobilePoint(event);if(!p)return;
-    m.x=clampMobile(p.x-m.dragDx,12,88);m.y=clampMobile(p.y-m.dragDy,16,85);updateMobileBoard();
-  }
-  function stopMobileDrag(){state.mobile.dragging=false;state.mobile.pinchDistance=0;}
-
-  async function openCameraFallback(){
-    // NÃ£o inicia uma segunda cÃ¢mera se o usuÃ¡rio tocar duas vezes.
-    if(state.mobile.fallback && state.mobile.stream?.active) return true;
-    if(state.mobile.opening) return false;
-    if(!window.isSecureContext){
-      setMobileStatus("HTTPS necessÃ¡rio","Abra o CODA pelo endereÃ§o HTTPS do site para permitir o uso da cÃ¢mera.","warn");
-      return false;
-    }
-    if(!navigator.mediaDevices?.getUserMedia){
-      setMobileStatus("CÃ¢mera indisponÃ­vel","Abra no Chrome (Android) ou Safari (iPhone), pelo link HTTPS, e permita a cÃ¢mera nas configuraÃ§Ãµes do site.","warn");
-      return false;
-    }
-    const button=$("#openMobileAR");
-    state.mobile.opening=true;
-    if(button) button.disabled=true;
-    setMobileStatus("Solicitando a cÃ¢mera","Autorize a cÃ¢mera traseira quando o navegador perguntar.");
-    let stream=null;
-    try{
-      // ResoluÃ§Ã£o moderada mantÃ©m a cÃ¢mera responsiva em aparelhos mais simples.
-      try{
-        stream=await navigator.mediaDevices.getUserMedia({
-          video:{facingMode:{ideal:"environment"},width:{ideal:960},height:{ideal:720},frameRate:{ideal:24,max:30}},audio:false
-        });
-      }catch(error){
-        if(error?.name!=="OverconstrainedError" && error?.name!=="NotFoundError") throw error;
-        // Alguns navegadores nÃ£o reconhecem os limites de resoluÃ§Ã£o ou facingMode.
-        stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
-      }
-      const overlay=$("#mobileAROverlay"), video=$("#mobileARVideo"), canvas=$("#mobileARCanvas");
-      if(!overlay || !video) throw new Error("A interface da cÃ¢mera nÃ£o foi encontrada. Atualize a pÃ¡gina e tente novamente.");
-      video.muted=true;
-      video.autoplay=true;
-      video.playsInline=true;
-      video.setAttribute("playsinline","");
-      video.srcObject=stream;
-      overlay.hidden=false;
-      overlay.setAttribute("aria-hidden","false");
-      document.documentElement.classList.add("mobile-ar-open");
-      // NÃ£o ocultar falha de reproduÃ§Ã£o: sem play() a cÃ¢mera parece uma tela preta.
-      await video.play();
-      if(!video.videoWidth){
-        await new Promise((resolve,reject)=>{
-          const timeout=setTimeout(()=>{ cleanup(); reject(new Error("A cÃ¢mera abriu, mas nÃ£o enviou imagem. Feche outros aplicativos que estejam usando a cÃ¢mera e tente novamente.")); },5500);
-          const cleanup=()=>{ clearTimeout(timeout); video.removeEventListener("loadedmetadata",onReady); };
-          const onReady=()=>{ cleanup(); resolve(); };
-          video.addEventListener("loadedmetadata",onReady,{once:true});
-          if(video.videoWidth) onReady();
-        });
-      }
-      state.mobile.stream=stream;
-      state.mobile.fallback=true;
-      if(canvas){
-        state.mobile.renderer?.destroy?.();
-        state.mobile.renderer=window.CodaESP3D?.createOverlay?.(canvas,{
-          onComponentMove(id,x,z,done){window.dispatchEvent(new CustomEvent("coda-ar-component-move",{detail:{id,x,z,done}}));}
-        })||null;
-        state.mobile.renderer?.setProject?.("blink");
-      }
-      resetMobileBoard();
-      window.dispatchEvent(new CustomEvent("coda-mobile-ar-open"));
-      setMobileStatus("CÃ¢mera funcionando","Modo sobreposiÃ§Ã£o disponÃ­vel: toque na imagem, posicione e fixe a placa. A posiÃ§Ã£o nÃ£o acompanha a mesa se vocÃª mover o celular.","ok");
-      return true;
-    }catch(error){
-      stream?.getTracks?.().forEach(track=>track.stop());
-      state.mobile.stream=null;
-      state.mobile.fallback=false;
-      const video=$("#mobileARVideo"),overlay=$("#mobileAROverlay");
-      if(video){ video.pause(); video.srcObject=null; }
-      if(overlay){ overlay.hidden=true; overlay.setAttribute("aria-hidden","true"); }
-      document.documentElement.classList.remove("mobile-ar-open");
-      const denied=error?.name==="NotAllowedError"||error?.name==="SecurityError"||error?.name==="PermissionDeniedError";
-      const busy=error?.name==="NotReadableError"||error?.name==="TrackStartError";
-      setMobileStatus(denied?"Acesso Ã  cÃ¢mera bloqueado":busy?"CÃ¢mera em uso":"NÃ£o foi possÃ­vel exibir a cÃ¢mera",
-        denied?"No navegador, toque no cadeado/Ã­cone do site e permita CÃ¢mera. Depois tente novamente.":
-        busy?"Feche outros aplicativos que usam a cÃ¢mera e tente de novo.":
-        (error?.message||"Confira a permissÃ£o da cÃ¢mera e tente novamente."),"warn");
-      console.warn("CODA RA mobile:",error);
-      return false;
-    }finally{
-      state.mobile.opening=false;
-      if(button) button.disabled=false;
-    }
-  }
-
-  function closeMobileAR(){
-    window.dispatchEvent(new CustomEvent("coda-mobile-ar-close"));
-    if(state.session && state.device==="mobile"){ state.session.end().catch(()=>{}); }
-    state.mobile.stream?.getTracks?.().forEach(track=>track.stop());
-    state.mobile.stream=null; state.mobile.fallback=false;
-    state.mobile.renderer?.destroy?.(); state.mobile.renderer=null;
-    const video=$("#mobileARVideo"), overlay=$("#mobileAROverlay");
-    if(video) video.srcObject=null;
-    if(overlay){ overlay.hidden=true; overlay.setAttribute("aria-hidden","true"); }
-    document.documentElement.classList.remove("mobile-ar-open");
-    resetMobileBoard();
-  }
-
-  async function enterMobileAR(){
-    // A aÃ§Ã£o "RA no celular" abre a cÃ¢mera diretamente. Evita que a tentativa
-    // WebXR (frequentemente indisponÃ­vel em iOS/Android) impeÃ§a a cÃ¢mera comum.
-    // O botÃ£o "RA com Ã³culos" continua usando WebXR immersive-ar normalmente.
-    return openCameraFallback();
-  }
-
-  function activateMobile(){
-    if(!window.isSecureContext){ setMobileStatus("HTTPS necessÃ¡rio","Para usar a cÃ¢mera no celular, abra o CODA por HTTPS.","warn"); return; }
-    setMobileStatus("CÃ¢mera disponÃ­vel","Toque em â€œRA no celularâ€ ou â€œAbrir cÃ¢mera em RAâ€ e autorize a cÃ¢mera. A placa 3D aparece sobre a imagem depois que vocÃª tocar na mesa.","ok");
-  }
-
-  function bind(){
-    $$('[data-ar-mode]').forEach(btn=>btn.addEventListener("click",()=>{ $$('[data-ar-mode]').forEach(x=>x.classList.toggle("active",x===btn)); state.mode=btn.dataset.arMode; $("#arLabTools").hidden=state.mode!=="lab"; updateButtons(); }));
-    $$('[data-xr-experience]').forEach(btn=>btn.addEventListener("click",()=>{state.experience=btn.dataset.xrExperience;$$('[data-xr-experience]').forEach(x=>{const active=x===btn;x.classList.toggle("active",active);x.setAttribute("aria-checked",String(active))});if(state.experience==="vr"){state.mode="lab";$$('[data-ar-mode]').forEach(x=>x.classList.toggle("active",x.dataset.arMode==="lab"));$("#arLabTools").hidden=false;}state.checked=false;checkSupport();}));
-    $("#enterAR")?.addEventListener("click",enterAR); $("#exitAR")?.addEventListener("click",exitAR);
-    $("#openMobileAR")?.addEventListener("click",enterMobileAR);
-    $("#closeMobileAR")?.addEventListener("click",closeMobileAR);
-    $("#mobileARStage")?.addEventListener("click",placeMobileFallback);
-    $("#mobileARCanvas")?.addEventListener("pointerdown",startMobileDrag);
-    window.addEventListener("pointermove",moveMobileDrag,{passive:false}); window.addEventListener("pointerup",stopMobileDrag);
-    $("#mobileARCanvas")?.addEventListener("touchstart",startMobileDrag,{passive:false});
-    window.addEventListener("touchmove",moveMobileDrag,{passive:false}); window.addEventListener("touchend",stopMobileDrag);
-    $("#mobileARSmaller")?.addEventListener("click",()=>{state.mobile.scale=Math.max(.55,state.mobile.scale-.1);updateMobileBoard();});
-    $("#mobileARLarger")?.addEventListener("click",()=>{state.mobile.scale=Math.min(2.2,state.mobile.scale+.1);updateMobileBoard();});
-    $("#mobileARRotateLeft")?.addEventListener("click",()=>{state.mobile.rotation-=12;updateMobileBoard();});
-    $("#mobileARRotateRight")?.addEventListener("click",()=>{state.mobile.rotation+=12;updateMobileBoard();});
-    $("#mobileARReset")?.addEventListener("click",resetMobileBoard);
-    $("#mobileARLock")?.addEventListener("click",()=>{
-      if(!state.mobile.placed)return;
-      state.mobile.locked=!state.mobile.locked;
-      state.mobile.dragging=false;
-      syncMobileLock();
-      toast(state.mobile.locked?"Placa fixa nesta imagem da cÃ¢mera":"Placa desbloqueada. Arraste para mover.");
-    });
-    syncMobileLock();
-    $("#checkAR")?.addEventListener("click",checkSupport);
-    $("#arImportCircuit")?.addEventListener("click",importPrototype);
-    $("#arAddLed")?.addEventListener("click",()=>addComponent("led")); $("#arAddResistor")?.addEventListener("click",()=>addComponent("resistor"));
-    $("#arClearComponents")?.addEventListener("click",()=>{state.components=[];state.xrConnections=[];state.xrWiresDirty=true;state.selected=null;renderComponentList();updateButtons();});
-    $("#arRotateLeft")?.addEventListener("click",()=>{state.rotation-=Math.PI/12;state.xrWiresDirty=true;}); $("#arRotateRight")?.addEventListener("click",()=>{state.rotation+=Math.PI/12;state.xrWiresDirty=true;});
-    $("#arScaleDown")?.addEventListener("click",()=>state.scale=Math.max(.55,state.scale-.1)); $("#arScaleUp")?.addEventListener("click",()=>state.scale=Math.min(2,state.scale+.1));
-    renderComponentList(); updateButtons();
-    // DetecÃ§Ã£o passiva para atualizar o texto, sem ser requisito para o clique Ãºnico.
-    setTimeout(()=>{ if(!state.session) checkSupport(); },250);
-  }
-  function activate(){ if(!state.checked) checkSupport(); }
-  // Os mÃ³dulos sÃ£o inseridos dinamicamente apÃ³s o carregamento da pÃ¡gina.
-  // Se DOMContentLoaded jÃ¡ passou, ligar os botÃµes imediatamente.
-  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded",bind,{once:true});
-  else bind();
-  window.CodaAR={checkSupport,enterAR,exitAR,activate,enterMobileAR,closeMobileAR,activateMobile,state,setHardware(snapshot){state.hardware=snapshot;},importPrototype};
-})();
+YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíÛµõ:-jZ.¶›­–)Ş³R‚‚’Óâ°¢'W6R7G&–7B#° ¢6öç7BBÒ‡2Â&ö÷CÖFö7VÖVçB’Óâ&ö÷BçVW'•6VÆV7F÷"‡2“°¢6öç7BBBÒ‡2Â&ö÷CÖFö7VÖVçB’Óâ²ââç&ö÷BçVW'•6VÆV7F÷$ÆÂ‡2•Ó°¢6öç7B7FFRÒ°¢7W÷'FVC¢fÇ6RÂ6†V6¶VC¢fÇ6RÂ6W76–öã¢çVÆÂÂvÃ¢çVÆÂÂ6çf3¢çVÆÂÀ¢&Ve76S¢çVÆÂÂf–WvW%76S¢çVÆÂÂ†—E6÷W&6S¢çVÆÂÂÆ7D†—C¢çVÆÂÀ¢ÖöFS¢'f–Wr"ÂW‡W&–Væ6S¢'g""Â7W÷'C¢·g#¦fÇ6RÆ#¦fÇ6WÒÂÆ6VC¢fÇ6RÂ6VÆV7FVC¢çVÆÂÂ66ÆS¢Â&÷FF–öã¢À¢&ö&C¢²–C¢$U53""Â¶–æC¢&&ö&B"Âƒ£Â“£Â£¢ÓãcRÒÀ¢6ö×öæVçG3¢µÒÂ&öw&Ó¢çVÆÂÂ7V&S¢çVÆÂÂg&ÖT†æFÆS¢çVÆÂÂFWf–6S¢&†VG6WB"À¢w&&&VC¢çVÆÂÂ‡$'WGFöç3¢µÒÂ‡%–ä'WGFöç3¢µÒÂ‡$†æG3¢æWrÖ‚’Â‡$–çWE7FFW3¢æWrÖ‚’Â‡%F÷V6…7FFW3¦æWrÖ‚’Ç‡$7F–öåF–ÖW3¦æWrÖ‚’À¢†æD6öçG&öÆÆW#¦çVÆÂÆ†æE6×ÆW3¦æWrÖ‚’ÇGvô†æEG&ç6f÷&Ó¦çVÆÂÀ¢v—&–ætÖöFS¦fÇ6RÂVæF–æuFW&Ö–æÃ¦çVÆÂÂ‡$6öææV7F–öç3¥µÒÂ‡%v—&W3¦çVÆÂÂ‡%v—&W4F—'G“§G'VRÂ‡%F&ÆS¦çVÆÂÀ¢&ö&DÆö6¶VC¦fÇ6RÂg%–åæVÃ¦çVÆÂÂg%–åæVÄ÷Vã¦fÇ6RÂg$Æö6´'WGFöã¦çVÆÂÂg$Æ—D¶W“¦çVÆÂÂg%&öw&Ô÷Vã¦fÇ6RÂg$¶W–&ö&D÷Vã¦fÇ6RÂg%7—7FVÔ–çWC¦çVÆÂÂg$Fö6³¦çVÆÂÀ¢g$6öFS¢""Âg%'VçF–ÖS¢çVÆÂÂg%'Vææ–æs¢fÇ6RÂg%67&VVã¢çVÆÂÂg%6W&–Ã¢µÒÂg$VF—F÷$ÖW76vS¢%$ôåDò$$ôu$Ô""À¢Öö&–ÆS¢²7G&VÓ¦çVÆÂÂfÆÆ&6³¦fÇ6RÂÆ6VC¦fÇ6RÂÆö6¶VC¦fÇ6RÂƒ£SÂ“£S‚Â66ÆS£Â&÷FF–öã£ÂG&vv–æs¦fÇ6RÂG&tGƒ£ÂG&tG“£Â–æ6„F—7Fæ6S£Â&VæFW&W#¦çVÆÂĞ¢Ó° ¢6öç7BdU%BÒGG&–'WFRfV32÷6—F–öã²Væ–f÷&ÒÖCBU&ö¦V7F–öã²Væ–f÷&ÒÖCBUf–Ws²Væ–f÷&ÒÖCBTÖöFVÃ²fö–BÖ–â‚—²vÅõ÷6—F–öã×U&ö¦V7F–öâ§Uf–Wr§TÖöFVÂ§fV3B†÷6—F–öâÃã“²Ö°¢6öç7Be$rÒ&V6—6–öâÖVF—V×fÆöC²Væ–f÷&ÒfV3BT6öÆ÷#²fö–BÖ–â‚—²vÅôg&t6öÆ÷#×T6öÆ÷#²Ö° ¢gVæ7F–öâFö7B†ÖW76vR—²v–æF÷rä6öF6÷&Sòç6†÷uFö7Còâ†ÖW76vR“²Ğ¢gVæ7F–öâ6WE7FGW2‡F—FÆRÂFW‡BÂG—SÒ""—°¢6öç7B&÷ƒÒB‚"6%7FGW2"“²–b‚&÷‚’&WGW&ã°¢&÷‚æ6Æ74æÖSÖ"×7FGW2G·G—WÖçG&–Ò‚“°¢&÷‚æ–ææW$…DÔÃÖÇ7ãâG·G—SÓÓÒ&ö²#ò.)É2#§G—SÓÓÒ'v&â#ò"#¢.)xâ'ÓÂ÷7ããÆF—cãÇ7G&öæsâG·F—FÆWÓÂ÷7G&öæsãÇ6ÖÆÃâG·FW‡GÓÂ÷6ÖÆÃãÂöF—cæ°¢Ğ ¢gVæ7F–öâ6WDÖö&–ÆU7FGW2‡F—FÆRÂFW‡BÂG—SÒ""—°¢6öç7B&÷ƒÒB‚"6Öö&–ÆT%7FGW2"“²–b‚&÷‚’&WGW&ã°¢&÷‚æ6Æ74æÖSÖ"×7FGW2G·G—WÖçG&–Ò‚“°¢&÷‚æ–ææW$…DÔÃÖÇ7ãâG·G—SÓÓÒ&ö²#ò.)É2#§G—SÓÓÒ'v&â#ò"#¢.)xâ'ÓÂ÷7ããÆF—cãÇ7G&öæsâG·F—FÆWÓÂ÷7G&öæsãÇ6ÖÆÃâG·FW‡GÓÂ÷6ÖÆÃãÂöF—cæ°¢Ğ ¢6öç7Be%ôDTÔóÖfö–B6WGW‚’°¢–äÖöFRƒ"ÂõUEUB“°¢6W&–Âæ&Vv–âƒS#“°§Ğ §fö–BÆö÷‚’°¢F–v—FÅw&—FRƒ"Â„”t‚“°¢6W&–Âç&–çFÆâ‚$ÄTBÆ–vFò"“°¢FVÆ’ƒS“°¢F–v—FÅw&—FRƒ"ÂÄõr“°¢6W&–Âç&–çFÆâ‚$ÄTBFW6Æ–vFò"“°¢FVÆ’ƒS“°§Ö°¢6öç7Be%ô„”tƒÖfö–B6WGW‚’°¢–äÖöFRƒ"ÂõUEUB“°§Ğ§fö–BÆö÷‚’°¢F–v—FÅw&—FRƒ"Â„”t‚“°¢FVÆ’ƒ“°§Ö°¢6öç7Be%ôÄõsÖfö–B6WGW‚’°¢–äÖöFRƒ"ÂõUEUB“°§Ğ§fö–BÆö÷‚’°¢F–v—FÅw&—FRƒ"ÂÄõr“°¢FVÆ’ƒ“°§Ö° ¢gVæ7F–öâVç7W&Ue%'VçF–ÖR‚—°¢–b‡7FFRçg%'VçF–ÖR—&WGW&â7FFRçg%'VçF–ÖS°¢6öç7B6÷&S×v–æF÷rä6öFU53%'VçF–ÖS°¢–b‚6÷&Sòæ7&VFU'VçF–ÖR—&WGW&âçVÆÃ°¢7FFRçg%'VçF–ÖSÖ6÷&Ræ7&VFU'VçF–ÖR‡°¢öå7FFR‡6æ6†÷B—·7FFRæ†&Gv&S×6æ6†÷C·7FFRçg%'Vææ–æsÔ&ööÆVâ‡6æ6†÷Bç'Vææ–ær“·&Vg&W6…e%67&VVâ‚“·ÒÀ¢öå6W&–Â†Æ–æR—·7FFRçg%6W&–ÂçW6‚…7G&–ær†Æ–æR’ç6Æ–6RƒÃƒ’“·7FFRçg%6W&–Ã×7FFRçg%6W&–Âç6Æ–6R‚ÓB“·&Vg&W6…e%67&VVâ‚“·ÒÀ¢öäW'&÷"†W'&÷"—·7FFRçg%'Vææ–æsÖfÇ6S·7FFRçg$VF—F÷$ÖW76vSÖU%$ó¢G¶W'&÷"æÖW76vWÖ·&Vg&W6…e%67&VVâ‚“·Ğ¢Ò“°¢&WGW&â7FFRçg%'VçF–ÖS°¢Ğ ¢gVæ7F–öâ6fUe$6öFR‚—°¢G'—¶Æö6Å7F÷&vRç6WD—FVÒ‚&6öF×g"×6¶WF6‚×cCb"Ç7FFRçg$6öFR“·Ö6F6‡·Ğ¢6öç7BVF—F÷#ÒB‚"6W7f—&×v&T6öFR"“¶–b†VF—F÷"–VF—F÷"çfÇVS×7FFRçg$6öFS°¢&Vg&W6…e%67&VVâ‚“°¢Ğ ¢gVæ7F–öâ'Våe$6öFR‚—°¢6öç7B'VçF–ÖSÖVç7W&Ue%'VçF–ÖR‚“°¢–b‚'VçF–ÖR—·7FFRçg$VF—F÷$ÖW76vSÒ%4”ÕTÄDõ"ì84ò4%$TtDò#·&Vg&W6…e%67&VVâ‚“·&WGW&ã·Ğ¢–b‚7FFRçg$6öFRçG&–Ò‚’—·7FFRçg$VF—F÷$ÖW76vSÒ$D”t•DRTÒ<94D”tòåDU2DRU„T5UD"#·&Vg&W6…e%67&VVâ‚“·&WGW&ã·Ğ¢G'—·'VçF–ÖRç7F'B‡7FFRçg$6öFR“·7FFRçg%'Vææ–æs×G'VS·7FFRçg$VF—F÷$ÖW76vSÒ.)xòU„T5UDäDòäòU53"d•%ETÂ#·Ğ¢6F6‚†W'&÷"—·7FFRçg%'Vææ–æsÖfÇ6S·7FFRçg$VF—F÷$ÖW76vSÖU%$ó¢G¶W'&÷"æÖW76vWÖ·Ğ¢&Vg&W6…e%67&VVâ‚“°¢Ğ ¢gVæ7F–öâ7F÷e$6öFR‚—·7FFRçg%'VçF–ÖSòç7F÷‚“·7FFRçg%'Vææ–æsÖfÇ6S·7FFRçg$VF—F÷$ÖW76vSÒ.)jU„T5\8|84ò”åDU%$ôÕ”D#·&Vg&W6…e%67&VVâ‚“·Ğ¢gVæ7F–öâFövvÆUe%&öw&Ò†g&ÖR—°¢7FFRçg%&öw&Ô÷VãÒ7FFRçg%&öw&Ô÷Vã°¢–b‡7FFRçg$VF—F÷%&ö÷B—7FFRçg$VF—F÷%&ö÷Bçf—6–&ÆS×7FFRçg%&öw&Ô÷Vã°¢–b‚7FFRçg%&öw&Ô÷Vâ—·7FFRçg$¶W–&ö&D÷VãÖfÇ6S·7FFRçg%7—7FVÔ–çWCòæ&ÇW"‚“·Ğ¢–b‡7FFRçg$¶W–&ö&E&ö÷B—7FFRçg$¶W–&ö&E&ö÷Bçf—6–&ÆS×7FFRçg%&öw&Ô÷Vâbg7FFRçg$¶W–&ö&D÷Vâbb7FFRçg%–åæVÄ÷Vã°¢–b‡7FFRçg$Fö6²—7FFRçg$Fö6²ç÷6—F–öâç6WB‡7FFRçg%&öw&Ô÷Vãóã#S£Ç7FFRçg%&öw&Ô÷VãóãsS£ãCbÇ7FFRçg%&öw&Ô÷VãòÒãƒS¢ÒãsR“°¢–b‡7FFRçg%&öw&Ô÷Vâ–'&–æuæVÇ4æV"†g&ÖR“°¢7FFRçg$VF—F÷$ÖW76vS×7FFRçg%&öw&Ô÷Vãò$TD•Dõ"$U%Dò(
+"DõTRD”t•D"#¢$TD•Dõ"dT4„Dò(
+"$ä4DÄ•e$R#·&Vg&W6…e%67&VVâ‚“°¢Ğ¢gVæ7F–öâ÷Våe$6öFT–çWB‚—°¢–b‚7FFRçg%&öw&Ô÷Vâ—&WGW&ã°¢–b‡7FFRç6W76–öãòæ—57—7FVÔ¶W–&ö&E7W÷'FVB—°¢–b‚7FFRçg%7—7FVÔ–çWB—°¢6öç7B–çWCÖFö7VÖVçBæ7&VFTVÆVÖVçB‚'FW‡F&V"“¶–çWBç6WDGG&–'WFR‚&&–ÖÆ&VÂ"Â$<;6F–vòFòU53"æòFV6ÆFòFòVW7B"“°¢ö&¦V7Bæ76–vâ†–çWBç7G–ÆRÇ·÷6—F–öã¢&f—†VB"ÆÆVgC¢#‡‚"ÇF÷¢#‡‚"Çv–GFƒ¢#'‚"Æ†V–v‡C¢#'‚"Æ÷6—G“¢#ã"Ç¤–æFWƒ¢#'Ò“°¢Fö7VÖVçBæ&öG’æVæD6†–ÆB†–çWB“·7FFRçg%7—7FVÔ–çWCÖ–çWC°¢Ğ¢6öç7B–çWC×7FFRçg%7—7FVÔ–çWBÆ÷&–v–æÃ×7FFRçg$6öFS¶–çWBçfÇVSÒ"#°¢–çWBæöæ–çWCÒ‚“Óç·7FFRçg$6öFSÖ÷&–v–æÂ¶–çWBçfÇVS·7FFRçg$VF—F÷$ÖW76vSÒ$<94D”tò$T4T$”DòDòDT4ÄDòTU5B#·6fUe$6öFR‚“·Ó°¢–çWBæfö7W2‚“·7FFRçg$¶W–&ö&D÷VãÖfÇ6S¶–b‡7FFRçg$¶W–&ö&E&ö÷B—7FFRçg$¶W–&ö&E&ö÷Bçf—6–&ÆSÖfÇ6S°¢7FFRçg$VF—F÷$ÖW76vSÒ%DT4ÄDòTU5B$U%Dò(
+"D”t•DRò<94D”tò#°¢ÖVÇ6W·7FFRçg$¶W–&ö&D÷VãÒ7FFRçg$¶W–&ö&D÷Vã¶–b‡7FFRçg$¶W–&ö&E&ö÷B—7FFRçg$¶W–&ö&E&ö÷Bçf—6–&ÆS×7FFRçg$¶W–&ö&D÷Vâbb7FFRçg%–åæVÄ÷Vã°¢7FFRçg$VF—F÷$ÖW76vS×7FFRçg$¶W–&ö&D÷Vãò%DT4ÄDòe"$U%Dò(
+"DõTRä2DT4Ä2#¢%DT4ÄDòe"dT4„Dò#·Ğ¢&Vg&W6…e%67&VVâ‚“°¢Ğ¢gVæ7F–öâFövvÆUe$¶W–&ö&B‚—°¢–b‚7FFRçg%&öw&Ô÷Vâ—&WGW&ã·7FFRçg%7—7FVÔ–çWCòæ&ÇW"‚“·7FFRçg$¶W–&ö&D÷VãÒ7FFRçg$¶W–&ö&D÷Vã°¢–b‡7FFRçg$¶W–&ö&E&ö÷B—7FFRçg$¶W–&ö&E&ö÷Bçf—6–&ÆS×7FFRçg$¶W–&ö&D÷Vâbb7FFRçg%–åæVÄ÷Vã°¢7FFRçg$VF—F÷$ÖW76vS×7FFRçg$¶W–&ö&D÷Vãò%DT4ÄDòe"$U%Dò(
+"DõTRä2DT4Ä2#¢%DT4ÄDòe"dT4„Dò#·&Vg&W6…e%67&VVâ‚“°¢Ğ ¢gVæ7F–öâ6çf5FW‡GW&R‡v–GF‚Æ†V–v‡B—°¢6öç7B6çf3ÖFö7VÖVçBæ7&VFTVÆVÖVçB‚&6çf2"“¶6çf2çv–GFƒ×v–GFƒ¶6çf2æ†V–v‡CÖ†V–v‡C°¢6öç7BFW‡GW&SÖæWrv–æF÷råD…$TRä6çf5FW‡GW&R†6çf2“·FW‡GW&RæÖ–äf–ÇFW#×v–æF÷råD…$TRäÆ–æV$f–ÇFW#·FW‡GW&RæÖtf–ÇFW#×v–æF÷råD…$TRäÆ–æV$f–ÇFW#°¢&WGW&â¶6çf2Æ7Gƒ¦6çf2ævWD6öçFW‡B‚#&B"’ÇFW‡GW&WÓ°¢Ğ ¢gVæ7F–öâÆ&VÄÖFW&–Â‡FW‡BÇ·v–GFƒÓS"Æ†V–v‡CÓ#‚Æ&sÒ"3#3S3r"ÆfsÒ"6cFV6fb"Æ66VçCÒ"6#c†6fb"ÆföçCÓCgÓ×·Ò—°¢6öç7Bf–WsÖ6çf5FW‡GW&R‡v–GF‚Æ†V–v‡B’Æ7Gƒ×f–Wræ7Gƒ¶7G‚æf–ÆÅ7G–ÆSÖ&s¶7G‚æf–ÆÅ&V7BƒÃÇv–GF‚Æ†V–v‡B“¶7G‚ç7G&ö¶U7G–ÆSÖ66VçC¶7G‚æÆ–æUv–GFƒÓS¶7G‚ç7G&ö¶U&V7Bƒ2Ã2Çv–GF‚ÓbÆ†V–v‡BÓb“°¢7G‚æf–ÆÅ7G–ÆSÖfs¶7G‚æföçCÖƒG¶föçG×‚Öç&÷RÄ&–Æ¶7G‚çFW‡DÆ–vãÒ&6VçFW"#¶7G‚çFW‡D&6VÆ–æSÒ&Ö–FFÆR#¶7G‚æf–ÆÅFW‡B‡FW‡BÇv–GF‚ó"Æ†V–v‡Bó"“°¢&WGW&âæWrv–æF÷råD…$TRäÖW6„&6–4ÖFW&–Â‡¶Ö§f–WrçFW‡GW&RÇG&ç7&VçC¦fÇ6WÒ“°¢Ğ ¢gVæ7F–öâg$'WGFöâ‡&VçBÆÆ&VÂÆ7F–öâÇ‚Ç’ÇsÒãbÆƒÒãcRÆ6öÆ÷#Ò"33ƒ#CS"Ç&Vv—7G'“×7FFRç‡$'WGFöç2—°¢6öç7BC×v–æF÷råD…$TRÆ'WGFöãÖæWrBäÖW6‚†æWrBä&÷„vVöÖWG'’‡rÆ‚Âã#"’ÆæWrBäÖW6…7FæF&DÖFW&–Â‡¶6öÆ÷"Ç&÷Vv†æW73¢ãc‚ÆÖWFÆæW73¢ã‡Ò’“°¢'WGFöâç÷6—F–öâç6WB‡‚Ç’Âã#R“¶'WGFöâçW6W$FFç‡$7F–öãÖ7F–öã¶'WGFöâçW6W$FFç‡$–çFW&7F—fS×G'VS°¢6öç7Bf6SÖæWrBäÖW6‚†æWrBåÆæTvVöÖWG'’‡r¢ã“"Æ‚¢ãs‚’ÆÆ&VÄÖFW&–Â†Æ&VÂÇ·v–GFƒ£3ƒBÆ†V–v‡C£"Æ&s¦6öÆ÷"Æ66VçC¦7F–öãÓÓÒ''Vâ#ò"6S#Ffb#¢"3“f&"ÆföçC£CÒ’“¶f6Rç÷6—F–öâç£Òã#¶'WGFöâæFB†f6R“·&VçBæFB†'WGFöâ“·&Vv—7G'’çW6‚†'WGFöâ“·&WGW&â'WGFöã°¢Ğ ¢gVæ7F–öâ'V–ÆEe$VF—F÷"‡66VæR—°¢6öç7BC×v–æF÷råD…$TRÆFö6³ÖæWrBäw&÷W‚“¶Fö6²ææÖSÒ$4ôDõe%ôDô4²#¶Fö6²ç÷6—F–öâç6WBƒÃãCbÂÒãsR“·66VæRæFB†Fö6²“°¢6öç7BFö6´&6³ÖæWrBäÖW6‚†æWrBä&÷„vVöÖWG'’ƒãCbÂãbÂã3R’ÆæWrBäÖW6…7FæF&DÖFW&–Â‡¶6öÆ÷#£ƒ&3“CRÇ&÷Vv†æW73¢ãc‡Ò’“¶Fö6²æFB†Fö6´&6²“°¢µ²%$ôu$Ô""Â'&öw&Ó§FövvÆR"ÂÒãSÂãÂã3ÒÅ²%”äõ2"Â'–ã§æVÂ"ÂÒãrÂãÂã#%ÒÅ²$d”8|84ò"Â'v—&S§FövvÆR"ÂãÂãÂã#5ÒÅ²$d•„"U5"Â&&ö&C¦Æö6²"ÂãCRÂãÂã#•ÕÒæf÷$V6‚‚…¶Æ&VÂÆ7F–öâÇ‚Ç’ÇuÒ“Óçg$'WGFöâ†Fö6²ÆÆ&VÂÆ7F–öâÇ‚Ç’ÇrÂãsRÂ"3S3#s‚"’“·7FFRçg$Fö6³ÖFö6³°¢6öç7B&ö÷CÖæWrBäw&÷W‚“·&ö÷BææÖSÒ$4ôDõe%ôTD•Dõ"#·&ö÷Bç÷6—F–öâç6WB‚ÒãSbÃãCÂÒãƒ‚“·&ö÷Bç&÷FF–öâç“Òã·&ö÷Bçf—6–&ÆSÖfÇ6S·66VæRæFB‡&ö÷B“°¢6öç7BæVÃÖæWrBäÖW6‚†æWrBä&÷„vVöÖWG'’ƒãc"Ããc‚Âã3R’ÆæWrBäÖW6…7FæF&DÖFW&–Â‡¶6öÆ÷#£ƒ#Ss3‚Ç&÷Vv†æW73¢ãs"ÆÖWFÆæW73¢ã'Ò’“·&ö÷BæFB‡æVÂ“°¢6öç7B67&VVäFFÖ6çf5FW‡GW&Rƒ#ƒÃc#’Ç67&VVãÖæWrBäÖW6‚†æWrBåÆæTvVöÖWG'’ƒãRÂãs’ÆæWrBäÖW6„&6–4ÖFW&–Â‡¶Ö§67&VVäFFçFW‡GW&WÒ’“·67&VVâç÷6—F–öâç6WBƒÂãBÂã"“·&ö÷BæFB‡67&VVâ“°¢7FFRçg%67&VVã×67&VVäFF°¢µ²$$Ä”ä²"Â'FV×ÆFS¦&Æ–æ²"ÂÒãcÂÒã3"Âã…ÒÅ²$„”t‚"Â'FV×ÆFS¦†–v‚"ÂÒãCÂÒã3"ÂãeÒÅ²$Äõr"Â'FV×ÆFS¦Æ÷r"ÂÒã#"ÂÒã3"ÂãUÒÅ²"²ÄTB"Â&FC¦ÆVB"ÂÒãBÂÒã3"ÂãuÒÅ²"²""Â&FC§&W6—7F÷""ÂãbÂÒã3"ÂãuÒÅ².)kb%Tâ"Â''Vâ"Âã3’ÂÒã3"Âã•ÒÅ².)j5Dõ"Â'7F÷"ÂãcÂÒã3"Âã…ÕÒæf÷$V6‚‚…¶Æ&VÂÆ7F–öâÇ‚Ç’ÇuÒ“Óçg$'WGFöâ‡&ö÷BÆÆ&VÂÆ7F–öâÇ‚Ç’ÇrÂãcRÆ7F–öãÓÓÒ''Vâ#ò"3sC–"#¢"3C3#“Vb"’“°¢µ².(kbt•$""Â'&÷FFS¦ÆVgB"ÂÒãcRÂÒãCRÂã…ÒÅ².(krt•$""Â'&÷FFS§&–v‡B"ÂÒãCBÂÒãCRÂã…ÒÅ²$d”8|84ò"Â'v—&S§FövvÆR"ÂÒã#"ÂÒãCRÂã#ÒÅ²$t"d”õ2"Â'v—&S¦6ÆV""Âã2ÂÒãCRÂã#5ÒÅ²%E$¤U"ÔU4"Â&'&–æs§F&ÆR"Âã32ÂÒãCRÂã#uÒÅ²%”ì8”•2U%Dò"Â&'&–æs¦¶W–&ö&B"Âãc"ÂÒãCRÂã3ÕÒæf÷$V6‚‚…¶Æ&VÂÆ7F–öâÇ‚Ç’ÇuÒ“Óçg$'WGFöâ‡&ö÷BÆÆ&VÂÆ7F–öâÇ‚Ç’ÇrÂãc"Æ7F–öãÓÓÒ'v—&S§FövvÆR#ò"3VC3cv#¢"3C3#“Vb"’“°¢7FFRçg$Æö6´'WGFöã×g$'WGFöâ‡&ö÷BÂ$d•„"U5"Â&&ö&C¦Æö6²"ÂÒã3ÂÒãS‚Âã3ÂãcBÂ"3S3#s‚"“°¢g$'WGFöâ‡&ö÷BÂ%DT4ÄDòe""Â&6öFS§f—'GVÂ"ÂÒãcrÂÒãS‚Âã#2ÂãcBÂ"3sC–""“°¢g$'WGFöâ‡&ö÷BÂ%”äòU5"Â'–ã§æVÂ"ÂãRÂÒãS‚Âã#‚ÂãcBÂ"3Sc3svR"“°¢g$'WGFöâ‡&ö÷BÂ$D”t•D""Â&6öFS¦–çWB"ÂãSRÂÒãS‚Âã#‚ÂãcBÂ"3sC–""“°¢µ²$DU4d¤U"d”ò"Â'v—&S§VæFò"ÂÒãSRÂÒãsÂã3ÒÅ²"²$õL84ò"Â&FC¦'WGFöâ"ÂÒãRÂÒãsÂã#UÒÅ²"²4Tå4õ""Â&FC§6Vç6÷""Âã#2ÂÒãsÂã#uÒÅ²$Ä”Õ""Â'FV×ÆFS¦6ÆV""ÂãS‚ÂÒãsÂã#UÕÒæf÷$V6‚‚…¶Æ&VÂÆ7F–öâÇ‚Ç’ÇuÒ“Óçg$'WGFöâ‡&ö÷BÆÆ&VÂÆ7F–öâÇ‚Ç’ÇrÂãcBÂ"3C#&#c"’“°¢g$'WGFöâ‡&ö÷BÂ$ÔôåD"U„TÕÄò"Â&6—&7V—C¦W†×ÆR"ÃÂÒãƒÂãC"ÂãcÂ"3c3C†B"“° ¢6öç7B¶W–&ö&CÖæWrBäw&÷W‚“¶¶W–&ö&BææÖSÒ$4ôDõe%ô´U”$ô$B#¶¶W–&ö&Bç÷6—F–öâç6WB‚ãcÃã"ÂÒãs‚“¶¶W–&ö&Bç&÷FF–öâç6WB‚ÒãrÂÒã"Ã“¶¶W–&ö&Bçf—6–&ÆSÖfÇ6S·66VæRæFB†¶W–&ö&B“°¢6öç7B&6SÖæWrBäÖW6‚†æWrBä&÷„vVöÖWG'’ƒã#"ÂãcbÂãB’ÆæWrBäÖW6…7FæF&DÖFW&–Â‡¶6öÆ÷#£ƒ&##CÇ&÷Vv†æW73¢ãsRÆÖWFÆæW73¢ãÒ’“¶¶W–&ö&BæFB†&6R“°¢6öç7B&÷w3Õ²##3CScsƒ“"Â'vW'G—V–÷"Â&6Ffv†¦¶Â"Â'§†7f&æÒ"Â%Â"r²Ò¢òS¢5µÒ%Ó°¢&÷w2æf÷$V6‚‚†6†'2Ç&÷r“Óç¶6öç7B¶W•sÖ6†'2æÆVæwFƒãòãs“¢ã“‚ÆvÒãÇF÷FÃÖ6†'2æÆVæwF‚¢†¶W•r¶v’Övµ²ââæ6†'5Òæf÷$V6‚‚†6†"Æ’“Óçg$'WGFöâ†¶W–&ö&BÆ6†"çFõWW$66R‚’Æ¶W“¢G¶6†'ÖÂ×F÷FÂó"¶¶W•ró"¶’¢†¶W•r¶v’Âã#SR×&÷r¢ãRÆ¶W•rÂãsBÂ"3Cƒ3cb"’“·Ò“°¢g$'WGFöâ†¶W–&ö&BÂ%54R"Â'76R"ÂÒã3RÂÒã#sRÂã#‚ÂãsRÂ"3c#CvR"“·g$'WGFöâ†¶W–&ö&BÂ$TåDU""Â&VçFW""ÂÒã2ÂÒã#sRÂã#BÂãsRÂ"3c#CvR"“·g$'WGFöâ†¶W–&ö&BÂ.(Ê²"Â&&6·76R"Âã#"ÂÒã#sRÂãbÂãsRÂ"3cSCVR"“·g$'WGFöâ†¶W–&ö&BÂ.)kb%Tâ"Â''Vâ"ÂãC"ÂÒã#sRÂã‚ÂãsRÂ"3sC–""“°¢6öç7B–åæVÃÖæWrBäw&÷W‚“·–åæVÂææÖSÒ$4ôDõe%õ”åõ”4´U"#·–åæVÂç÷6—F–öâç6WB‚ãs"ÃãC"ÂÒã“"“·–åæVÂç&÷FF–öâç“ÒÒã#·–åæVÂçf—6–&ÆSÖfÇ6S·66VæRæFB‡–åæVÂ“°¢6öç7B–ä&6³ÖæWrBäÖW6‚†æWrBä&÷„vVöÖWG'’ƒã#‚Ãã"Âã3R’ÆæWrBäÖW6…7FæF&DÖFW&–Â‡¶6öÆ÷#£ƒ#ƒƒ6BÇ&÷Vv†æW73¢ãs"ÆÖWFÆæW73¢ã'Ò’“·–åæVÂæFB‡–ä&6²“°¢6öç7B–ä†VFW#ÖæWrBäÖW6‚†æWrBåÆæTvVöÖWG'’‚ã“BÂãR’ÆÆ&VÄÖFW&–Â‚%”äõ2DòU53""Ç·v–GFƒ£“Æ†V–v‡C£#Æ&s¢"33ƒ#CS"Æ66VçC¢"6CFFfb"ÆföçC£SGÒ’“·–ä†VFW"ç÷6—F–öâç6WB‚Òã2ÂãCbÂã#"“·–åæVÂæFB‡–ä†VFW"“°¢g$'WGFöâ‡–åæVÂÂ$dT4„""Â'–ã¦6Æ÷6R"ÂãC’ÂãCbÂã#ÂãcRÂ"3cSCVR"Ç7FFRç‡%–ä'WGFöç2“°¢6öç7B–äæÖW3Õ²ââçv–æF÷rä6öFU5ÖöFVÂæÆVgBÂââçv–æF÷rä6öFU5ÖöFVÂç&–v‡EÓ°¢–äæÖW2æf÷$V6‚‚†æÖRÆ–æFW‚“Óç¶6öç7B6öÃÖ–æFW‚SBÇ&÷sÔÖF‚æfÆö÷"†–æFW‚óB’ÇƒÒÒãCCR¶6öÂ¢ã3Ç“Òã3"×&÷r¢ãƒRÇ&W6W'fVC×v–æF÷rä6öFU5ÖöFVÂç&W6W'fVBæ†2†æÖR’ÆÆ&VÃ×&W6W'fVCöG·v–æF÷rä6öFU5ÖöFVÂæÆ&VÂ†æÖR—Ò+rdÄ4†§v–æF÷rä6öFU5ÖöFVÂæÆ&VÂ†æÖR’Æ'WGFöã×g$'WGFöâ‡–åæVÂÆÆ&VÂÇ&W6W'fVCò'–ã¦Æö6¶VB#¦–ã§6VÆV7C¢G¶æÖWÖÇ‚Ç’Âã#rÂãcrÇ&W6W'fVCò"333ƒC#¢"3CC&#cR"Ç7FFRç‡%–ä'WGFöç2“¶'WGFöâçW6W$FFç‡$F—6&ÆVC×&W6W'fVC·Ò“°¢7FFRçg$VF—F÷%&ö÷C×&ö÷C·7FFRçg$¶W–&ö&E&ö÷CÖ¶W–&ö&C·7FFRçg%–åæVÃ×–åæVÃ·&Vg&W6…e%67&VVâ‚“°¢Ğ ¢gVæ7F–öâ&Vg&W6…e%67&VVâ‚—°¢6öç7Bf–Ws×7FFRçg%67&VVã¶–b‚f–Wr—&WGW&ã¶6öç7B¶7G‚Æ6çf2ÇFW‡GW&WÓ×f–Ws°¢7G‚æf–ÆÅ7G–ÆSÒ"3“S#’#¶7G‚æf–ÆÅ&V7BƒÃÆ6çf2çv–GF‚Æ6çf2æ†V–v‡B“¶7G‚æf–ÆÅ7G–ÆSÒ"33S#Fb#¶7G‚æf–ÆÅ&V7BƒÃÆ6çf2çv–GF‚Ãsb“°¢7G‚æf–ÆÅ7G–ÆSÒ"6SfcFc‚#¶7G‚æföçCÒ#s3G‚DÒÖöæòÆÖöæ÷76R#¶7G‚æf–ÆÅFW‡B‚'6¶WF6‚æ–æò(
+"TD•Dõ"e""Ã3"ÃC’“°¢7G‚æf–ÆÅ7G–ÆS×7FFRçg%'Vææ–æsò"6CFFfb#¢"6#–6R#¶7G‚çFW‡DÆ–vãÒ'&–v‡B#¶7G‚æf–ÆÅFW‡B‡7FFRçg%'Vææ–æsò.)xòU„T5UDäDò#¢.)xò$ôåDò"Æ6çf2çv–GF‚Ó3"ÃC’“¶7G‚çFW‡DÆ–vãÒ&ÆVgB#°¢6öç7BÆ–æW3×7FFRçg$6öFRç7Æ—B‚%Æâ"’Çf—6–&ÆSÖÆ–æW2ç6Æ–6R‚Ó"“¶7G‚æföçCÒ##—‚DÒÖöæòÆÖöæ÷76R#°¢f—6–&ÆRæf÷$V6‚‚†Æ–æRÆ–æFW‚“Óç¶6öç7B“Ó¶–æFW‚£3c¶7G‚æf–ÆÅ7G–ÆSÒ"3SCsv2#¶7G‚æf–ÆÅFW‡B…7G&–ær†Æ–æW2æÆVæwF‚×f—6–&ÆRæÆVæwF‚¶–æFW‚³’çE7F'Bƒ"Â""’Ã#"Ç’“¶7G‚æf–ÆÅ7G–ÆSÒò‡fö–GÇ–äÖöFWÆF–v—FÅw&—FWÆFVÆ—Å6W&–Â’òçFW7B†Æ–æR“ò"3†VSFfb#¢"6S†c&cR#¶7G‚æf–ÆÅFW‡B†Æ–æRç6Æ–6RƒÃcR’Ãs"Ç’Ãc“·Ò“°¢7G‚æf–ÆÅ7G–ÆSÒ"33S#Fb#¶7G‚æf–ÆÅ&V7BƒÃSCÆ6çf2çv–GF‚Ãƒ“¶7G‚æf–ÆÅ7G–ÆSÒ"6CFFfb#¶7G‚æföçCÒ##7‚DÒÖöæòÆÖöæ÷76R#¶7G‚æf–ÆÅFW‡B‡7FFRçg$VF—F÷$ÖW76vRÃ#‚ÃSc‚Ã##“°¢7G‚æf–ÆÅ7G–ÆSÒ"3–V#f&R#¶7G‚æföçCÒ##'‚DÒÖöæòÆÖöæ÷76R#¶7G‚æf–ÆÅFW‡B†4U$”Ã¢G·7FFRçg%6W&–ÂæB‚Ó—ÇÂ&wV&FæFòW†V7\:|:6ò'Öç6Æ–6RƒÃsb’Ã#‚Ãc"Ã##“·FW‡GW&RææVVG5WFFS×G'VS°¢Ğ ¢gVæ7F–öâ7F—fFUe$7F–öâ†7F–öâÆg&ÖR—°¢6öç7Bæ÷s×W&f÷&Öæ6Rææ÷r‚’ÆÆ7C×7FFRç‡$7F–öåF–ÖW2ævWB†7F–öâ—ÇÃÆFVÆ“Õ²'–ã§æVÂ"Â'–ã¦6Æ÷6R"Â'v—&S§FövvÆR"Â&&ö&C¦Æö6²%Òæ–æ6ÇVFW2†7F–öâ“ó3S£cS¶–b†æ÷rÖÆ7CÆFVÆ’—&WGW&ã·7FFRç‡$7F–öåF–ÖW2ç6WB†7F–öâÆæ÷r“°¢–b†7F–öãÓÓÒ''Vâ"—&WGW&â'Våe$6öFR‚“¶–b†7F–öãÓÓÒ'7F÷"—&WGW&â7F÷e$6öFR‚“°¢–b†7F–öãÓÓÒ'&÷FFS¦ÆVgB'ÇÆ7F–öãÓÓÒ'&÷FFS§&–v‡B"—°¢7FFRç&÷FF–öâ³Ö7F–öãÓÓÒ'&÷FFS¦ÆVgB#òÔÖF‚å’ó#¤ÖF‚å’ó#°¢–b‡7FFRç‡$&ö&B—7FFRç‡$&ö&Bç&÷FF–öâç“×7FFRç&÷FF–öã°¢&Vg&W6……%v—&W2‚“·7FFRçg$VF—F÷$ÖW76vSÒ$U53"t•$Dò(
+"\+#·&Vg&W6…e%67&VVâ‚“·&WGW&ã°¢Ğ¢–b†7F–öãÓÓÒ'v—&S§FövvÆR"—&WGW&âFövvÆUv—&–ær‚“°¢–b†7F–öãÓÓÒ'v—&S¦6ÆV""—·7FFRç‡$6öææV7F–öç3ÕµÓ·7FFRçVæF–æuFW&Ö–æÃÖçVÆÃ·7FFRçv—&–ætÖöFSÖfÇ6S·7FFRçg$Æ—D¶W“ÖçVÆÃ·&Vg&W6……%v—&W2‚“·7FFRçg$VF—F÷$ÖW76vSÒ$d”õ2$TÔõd”Dõ2#·&Vg&W6…e%67&VVâ‚“·&WGW&ã·Ğ¢–b†7F–öãÓÓÒ'v—&S§VæFò"—·7FFRç‡$6öææV7F–öç2ç÷‚“·7FFRçVæF–æuFW&Ö–æÃÖçVÆÃ·7FFRçv—&–ætÖöFSÖfÇ6S·7FFRçg$Æ—D¶W“ÖçVÆÃ·&Vg&W6……%v—&W2‚“·7FFRçg$VF—F÷$ÖW76vSÒ,9¤ÅD”ÔÄ”t8|84òDU4dT•D#·&Vg&W6…e%67&VVâ‚“·&WGW&ã·Ğ¢–b†7F–öãÓÓÒ&'&–æs§F&ÆR"—&WGW&â'&–æuF&ÆTæV"†g&ÖR“°¢–b†7F–öãÓÓÒ&'&–æs¦¶W–&ö&B"—&WGW&â'&–æuæVÇ4æV"†g&ÖR“°¢–b†7F–öãÓÓÒ&&ö&C¦Æö6²"—&WGW&âFövvÆT&ö&DÆö6²‚“°¢–b†7F–öãÓÓÒ'–ã§æVÂ"—&WGW&âFövvÆUe%–åæVÂ†g&ÖR“°¢–b†7F–öãÓÓÒ'&öw&Ó§FövvÆR"—&WGW&âFövvÆUe%&öw&Ò†g&ÖR“°¢–b†7F–öãÓÓÒ&6öFS¦–çWB"—&WGW&â÷Våe$6öFT–çWB‚“°¢–b†7F–öãÓÓÒ&6öFS§f—'GVÂ"—&WGW&âFövvÆUe$¶W–&ö&B‚“°¢–b†7F–öãÓÓÒ&6—&7V—C¦W†×ÆR"—&WGW&âÆöEe$W†×ÆR‚“°¢–b†7F–öãÓÓÒ'–ã¦6Æ÷6R"—&WGW&â6Æ÷6Ue%–åæVÂ‚“°¢–b†7F–öâç7F'G5v—F‚‚'–ã§6VÆV7C¢"’—&WGW&â6VÆV7Ee%–â†7F–öâç6Æ–6R‚'–ã§6VÆV7C¢"æÆVæwF‚’“°¢–b†7F–öãÓÓÒ'FV×ÆFS¦&Æ–æ²"—7FFRçg$6öFSÕe%ôDTÔó¶VÇ6R–b†7F–öãÓÓÒ'FV×ÆFS¦†–v‚"—7FFRçg$6öFSÕe%ô„”tƒ¶VÇ6R–b†7F–öãÓÓÒ'FV×ÆFS¦Æ÷r"—7FFRçg$6öFSÕe%ôÄõs¶VÇ6R–b†7F–öãÓÓÒ'FV×ÆFS¦6ÆV""—7FFRçg$6öFSÒ"#°¢VÇ6R–b†7F–öãÓÓÒ&FC¦ÆVB"—&WGW&âFD6ö×öæVçB‚&ÆVB"“¶VÇ6R–b†7F–öãÓÓÒ&FC§&W6—7F÷""—&WGW&âFD6ö×öæVçB‚'&W6—7F÷""“°¢VÇ6R–b†7F–öãÓÓÒ&FC¦'WGFöâ"—&WGW&âFD6ö×öæVçB‚&'WGFöâ"“¶VÇ6R–b†7F–öãÓÓÒ&FC§6Vç6÷""—&WGW&âFD6ö×öæVçB‚'6Vç6÷""“°¢VÇ6R–b†7F–öãÓÓÒ'76R"—7FFRçg$6öFR³Ò"#¶VÇ6R–b†7F–öãÓÓÒ&VçFW""—7FFRçg$6öFR³Ò%Æâ#¶VÇ6R–b†7F–öãÓÓÒ&&6·76R"—7FFRçg$6öFS×7FFRçg$6öFRç6Æ–6RƒÂÓ“¶VÇ6R–b†7F–öâç7F'G5v—F‚‚&¶W“¢"’—7FFRçg$6öFR³Ö7F–öâç6Æ–6RƒB“°¢7FFRçg$VF—F÷$ÖW76vSÒ$<94D”tòÅDU$Dò(
+"DõTRTÒ%Tâ#·6fUe$6öFR‚“°¢Ğ ¢7–æ2gVæ7F–öâ6†V6µ7W÷'B‚—°¢7FFRæ6†V6¶VC×G'VS°¢–b‚v–æF÷ræ—56V7W&T6öçFW‡B—²7FFRç7W÷'FVCÖfÇ6S²6WE7FGW2‚$…EE2æV6W7<:&–ò"Â$'&ò4ôD÷"…EE2æò;67VÆ÷2&Æ–&W&"vV%…"â"Â'v&â"“²WFFT'WGFöç2‚“²&WGW&âfÇ6S²Ğ¢–b‚æf–vF÷"ç‡"—²7FFRç7W÷'FVCÖfÇ6S²6WE7FGW2‚%vV%…"ì:6òVæ6öçG&Fò"Â$æW7FRF—7÷6—F—fòfö<:¢–æFöFRW6"f—7VÆ—¦:|:6ò4Bæ÷&ÖÂâ"Â'v&â"“²WFFT'WGFöç2‚“²&WGW&âfÇ6S²Ğ¢G'’°¢6öç7B·g"Æ%ÓÖv—B&öÖ—6RæÆÂ…°¢æf–vF÷"ç‡"æ—56W76–öå7W÷'FVB‚&–ÖÖW'6—fR×g""’æ6F6‚‚‚“ÓæfÇ6R’À¢æf–vF÷"ç‡"æ—56W76–öå7W÷'FVB‚&–ÖÖW'6—fRÖ""’æ6F6‚‚‚“ÓæfÇ6R¢Ò“°¢7FFRç7W÷'C×·g"Æ'Ó·7FFRç7W÷'FVCÔ&ööÆVâ‡7FFRç7W÷'E·7FFRæW‡W&–Væ6UÒ“°¢Ò6F6‚²7FFRç7W÷'C×·g#¦fÇ6RÆ#¦fÇ6WÓ·7FFRç7W÷'FVCÖfÇ6S²Ğ¢6öç7BÆ&VÃ×7FFRæW‡W&–Væ6SÓÓÒ'g"#ò&Ö&–VçFRf—'GVÂ#¢'&VÆ–FFRVÖVçFF#°¢6WE7FGW2‡7FFRç7W÷'FVCöG¶Æ&VÅ³ÒçFõWW$66R‚’¶Æ&VÂç6Æ–6Rƒ—ÒF—7öì:×fVÆ¦G¶Æ&VÅ³ÒçFõWW$66R‚’¶Æ&VÂç6Æ–6Rƒ—Òì:6òF—7öì:×fVÆÇ7FFRç7W÷'FVCò,967VÆ÷2FWFV7FFòâVçG&RæòÖ&–VçFRVæFòW7F—fW"&öçFòâ#¦W7FRæfVvF÷"ì:6òöfW&V6RG·7FFRæW‡W&–Væ6SÓÓÒ'g"#ò%vV%…"–ÖÖW'6—fR×g"#¢%vV%…"–ÖÖW'6—fRÖ"'ÒæÇ7FFRç7W÷'FVCò&ö²#¢'v&â"“°¢WFFT'WGFöç2‚“²&WGW&â7FFRç7W÷'FVC°¢Ğ ¢gVæ7F–öâWFFT'WGFöç2‚—°¢6öç7BVçFW#ÒB‚"6VçFW$""“²–b†VçFW"’VçFW"æF—6&ÆVCÒ7FFRç7W÷'FVBÇÂ7FFRç6W76–öã°¢6öç7BW†—CÒB‚"6W†—D""“²–b†W†—B’W†—BæF—6&ÆVCÒ7FFRç6W76–öã°¢6öç7BÖöFSÒB‚"6$ÖöFTÆ&VÂ"“²–b†ÖöFR’ÖöFRçFW‡D6öçFVçC×7FFRæÖöFSÓÓÒ&Æ"#ò$Æ&÷&L;7&–ò–çFW&F—fò#¢%6öÖVçFRf—7VÆ—¦:|:6ò#°¢6öç7B6VÃÒB‚"6%6VÆV7FVDÆ&VÂ"“²–b‡6VÂ’6VÂçFW‡D6öçFVçC×7FFRç6VÆV7FVBò6VÆV6–öæFó¢G·7FFRç6VÆV7FVGÖ¢$æVæ‡VÒö&¦WFò6VÆV6–öæFò#°¢Ğ ¢òòvV%…"WF–Æ—¦òÖW6Öò6öç7G'WF÷"FWFÆ†FòF÷2÷WG&÷2G,:§2Ö&–VçFW2à¢gVæ7F–öâ–æ—DtÂ‚—°¢6öç7BC×v–æF÷råD…$TRÆÖöFVÃ×v–æF÷rä6öFU5ÖöFVÃ°¢6öç7B6çf3ÖFö7VÖVçBæ7&VFTVÆVÖVçB‚&6çf2"“¶6çf2æ–CÒ'‡$6çf2#°¢6öç7B&VæFW&W#ÖæWrBåvV$tÅ&VæFW&W"‡¶6çf2ÆÇ†§G'VRÆçF–Æ–3§G'VWÒ“°¢&VæFW&W"æ÷WGWDVæ6öF–æsÕBç5$t$Væ6öF–æs·&VæFW&W"ç‡"æVæ&ÆVC×G'VS·&VæFW&W"ç‡"ç6WE&VfW&Væ6U76UG—R‚&Æö6ÂÖfÆö÷""“°¢6öç7B66VæSÖæWrBå66VæR‚“·66VæRæFB†æWrBä†VÖ—7†W&TÆ–v‡Bƒ†S†CffbÃƒ#c3bÃã‚’“°¢6öç7BÆ–v‡CÖæWrBäF—&V7F–öæÄÆ–v‡Bƒ†fffffbÃ"“¶Æ–v‡Bç÷6—F–öâç6WBƒÃ2Ã"“·66VæRæFB†Æ–v‡B“°¢6öç7B&ö&CÖÖöFVÂæ7&VFT&ö&B‚“·66VæRæFB†&ö&B“°¢6öç7B&WF–6ÆSÖæWrBäÖW6‚†æWrBå&–ætvVöÖWG'’‚ã#RÂã#’Ã3"’ÆæWrBäÖW6„&6–4ÖFW&–Â‡¶6öÆ÷#£†#VVC–RÇ6–FS¥BäF÷V&ÆU6–FWÒ’“·&WF–6ÆRç&÷FF–öâçƒÒÔÖF‚å’ó#·&WF–6ÆRçf—6–&ÆSÖfÇ6S·66VæRæFB‡&WF–6ÆR“°¢6öç7B&ööÓÖæWrBäw&÷W‚“°¢6öç7BfÆö÷#ÖæWrBäÖW6‚†æWrBåÆæTvVöÖWG'’ƒ‚Ã‚’ÆæWrBäÖW6…7FæF&DÖFW&–Â‡¶6öÆ÷#£ƒ3&BÇ&÷Vv†æW73¢ã—Ò’“¶fÆö÷"ç&÷FF–öâçƒÒÔÖF‚å’ó#·&ööÒæFB†fÆö÷"“°¢6öç7BF&ÆSÖæWrBäÖW6‚†æWrBä&÷„vVöÖWG'’ƒã‚Âã‚Ã’ÆæWrBäÖW6…7FæF&DÖFW&–Â‡¶6öÆ÷#£ƒC“33cbÇ&÷Vv†æW73¢ãs'Ò’“·F&ÆRç÷6—F–öâç6WBƒÂãs"ÂÓ“·&ööÒæFB‡F&ÆR“°¢6öç7B&6³ÖæWrBäÖW6‚†æWrBåÆæTvVöÖWG'’ƒ‚Ã2’ÆæWrBäÖW6…7FæF&DÖFW&–Â‡¶6öÆ÷#£ƒc3#RÇ&÷Vv†æW73£Ò’“¶&6²ç÷6—F–öâç6WBƒÃãRÂÓ2“·&ööÒæFB†&6²“°¢6öç7BF—FÆSÖæWrBäÖW6‚†æWrBåÆæTvVöÖWG'’ƒ"ã3RÂã3B’ÆÆ&VÄÖFW&–Â‚$4ôD(
+"Ä$õ$L95$”òU53"e""Ç·v–GFƒ£#BÆ†V–v‡C£SÆ&s¢"3#sc6R"Æ66VçC¢"6#c†6fb"ÆföçC£SGÒ’“·F—FÆRç÷6—F–öâç6WBƒÃ"ã#‚ÂÓ"ã“B“·&ööÒæFB‡F—FÆR“°¢66VæRæFB‡&ööÒ“°¢6öç7Bv—&W3ÖæWrBäw&÷W‚“·v—&W2ææÖSÒ$4ôDõe%õt•$U2#·66VæRæFB‡v—&W2“°¢6öç7B†æEG&6¶W#×v–æF÷rä6öF…$†æD6öçG&öÇ3òä†æDvW7GW&UG&6¶W#°¢ö&¦V7Bæ76–vâ‡7FFRÇ¶6çf2ÆvÃ§&VæFW&W"ævWD6öçFW‡B‚’Ç‡%&VæFW&W#§&VæFW&W"Ç‡%66VæS§66VæRÇ‡$6ÖW&¦æWrBåW'7V7F—fT6ÖW&‚’Ç‡$&ö&C¦&ö&BÇ‡%'G3¦æWrÖ‚’Ç‡%&WF–6ÆS§&WF–6ÆRÇ‡%&ööÓ§&ööÒÇ‡%F&ÆS§F&ÆRÇ‡%v—&W3§v—&W2Æ†æD6öçG&öÆÆW#¤†æEG&6¶W#öæWr†æEG&6¶W"‚“¦çVÆÂÆ†æE6×ÆW3¦æWrÖ‚’ÇGvô†æEG&ç6f÷&Ó¦çVÆÇÒ“°¢'V–ÆEe$VF—F÷"‡66VæR“°¢Ğ¢6öç7B„äEô¤ô”åE3Õ²'w&—7B"Â'F‡VÖ"ÖÖWF6'Â"Â'F‡VÖ"×†Æç‚ÖF—7FÂ"Â'F‡VÖ"×F—"Â&–æFW‚Öf–ævW"ÖÖWF6'Â"Â&–æFW‚Öf–ævW"×†Æç‚×&÷†–ÖÂ"Â&–æFW‚Öf–ævW"×†Æç‚ÖF—7FÂ"Â&–æFW‚Öf–ævW"×F—"Â&Ö–FFÆRÖf–ævW"×†Æç‚×&÷†–ÖÂ"Â&Ö–FFÆRÖf–ævW"×F—"Â'&–ærÖf–ævW"×F—"Â'–æ·’Öf–ævW"×F—%Ó°¢gVæ7F–öâ†æDÖ&¶W'2††æFVFæW72—°¢–b‡7FFRç‡$†æG2æ†2††æFVFæW72’—&WGW&â7FFRç‡$†æG2ævWB††æFVFæW72“°¢6öç7BC×v–æF÷råD…$TRÆw&÷WÖæWrBäw&÷W‚“¶w&÷WææÖSÖÔõòG¶†æFVFæW77Ö°¢6öç7BÖFW&–ÃÖæWrBäÖW6…7FæF&DÖFW&–Â‡¶6öÆ÷#¦†æFVFæW73ÓÓÒ&ÆVgB#óƒsvFffc£†#–fc6"ÆVÖ—76—fS¦†æFVFæW73ÓÓÒ&ÆVgB#óƒ#6cS£ƒ#“CcBÇG&ç7&VçC§G'VRÆ÷6—G“¢ãƒ'Ò“°¢6öç7B¦ö–çG3Ô„äEô¤ô”åE2æÖ‚‚“Óç¶6öç7BÖ&¶W#ÖæWrBäÖW6‚†æWrBå7†W&TvVöÖWG'’‚ã"Ã"Ã‚’ÆÖFW&–Â“¶Ö&¶W"çf—6–&ÆSÖfÇ6S¶w&÷WæFB†Ö&¶W"“·&WGW&âÖ&¶W#·Ò“°¢7FFRç‡%66VæRæFB†w&÷W“¶6öç7B&W7VÇC×¶w&÷WÆ¦ö–çG7Ó·7FFRç‡$†æG2ç6WB††æFVFæW72Ç&W7VÇB“·&WGW&â&W7VÇC°¢Ğ¢gVæ7F–öâWFFT†æG2†g&ÖR—°¢6öç7B6VVãÖæWr6WB‚“¶f÷"†6öç7B6÷W&6Röb7FFRç6W76–öãòæ–çWE6÷W&6W7ÇÅµÒ—¶–b‚6÷W&6Ræ†æB–6öçF–çVS¶6öç7B6–FS×6÷W&6Ræ†æFVFæW77ÇÂ&æöæR#·6VVâæFB‡6–FR“¶6öç7BÖ&¶W'3Ö†æDÖ&¶W'2‡6–FR“°¢„äEô¤ô”åE2æf÷$V6‚‚†æÖRÆ–æFW‚“Óç¶6öç7B76S×6÷W&6Ræ†æBævWB†æÖR’Ç÷6S×76Rbfg&ÖRævWD¦ö–çE÷6Sòâ‡76RÇ7FFRç&Ve76R’ÆÖ&¶W#ÖÖ&¶W'2æ¦ö–çG5¶–æFW…Ó¶Ö&¶W"çf—6–&ÆSÔ&ööÆVâ‡÷6R“¶–b‡÷6R—¶6öç7B×÷6RçG&ç6f÷&Òç÷6—F–öã¶Ö&¶W"ç÷6—F–öâç6WB‡ç‚Çç’Çç¢“¶Ö&¶W"ç66ÆRç6WE66Æ"„ÖF‚æÖ‚‚ãcRÄçVÖ&W"‡÷6Rç&F—W7ÇÂã’òã’“·×Ò“°¢Öf÷"†6öç7B·6–FRÆÖ&¶W'5Òöb7FFRç‡$†æG2–Ö&¶W'2æw&÷Wçf—6–&ÆS×6VVâæ†2‡6–FR“°¢Ğ¢6öç7Bö–çD'&“×ö–çCÓçö–çCõ·ö–çBç‚Çö–çBç’Çö–çBç¥Ó¦çVÆÃ°¢6öç7Bæ÷&ÖÆ—¦VDævÆS×fÇVSÓäÖF‚æFã"„ÖF‚ç6–â‡fÇVR’ÄÖF‚æ6÷2‡fÇVR’“°¢gVæ7F–öâ6×ÆTf÷"†–B—·&WGW&â7FFRæ†æE6×ÆW2ævWB†–B—ÇÆçVÆÃ·Ğ¢gVæ7F–öâö&¦V7E66ÆR†ö&¦V7B—·&WGW&âö&¦V7CÓÓ×7FFRæ&ö&C÷7FFRç66ÆS¤çVÖ&W"†ö&¦V7Bç66ÆWÇÃ“·Ğ¢gVæ7F–öâ6WDö&¦V7E66ÆR†ö&¦V7BÇfÇVR—¶–b†ö&¦V7CÓÓ×7FFRæ&ö&B—7FFRç66ÆSÔÖF‚æÖ‚‚ãSRÄÖF‚æÖ–âƒ"ÇfÇVR’“¶VÇ6Rö&¦V7Bç66ÆSÔÖF‚æÖ‚‚ãRÄÖF‚æÖ–âƒã‚ÇfÇVR’“·Ğ¢gVæ7F–öâö&¦V7E&÷FF–öâ†ö&¦V7B—·&WGW&âö&¦V7CÓÓ×7FFRæ&ö&C÷7FFRç&÷FF–öã¢ÔçVÖ&W"†ö&¦V7Bç&÷FF–öçÇÃ’¤ÖF‚å’óƒ·Ğ¢gVæ7F–öâ6WDö&¦V7E&÷FF–öâ†ö&¦V7BÇfÇVR—¶–b†ö&¦V7CÓÓ×7FFRæ&ö&B—7FFRç&÷FF–öã×fÇVS¶VÇ6Rö&¦V7Bç&÷FF–öãÒ×fÇVR£ƒôÖF‚å“·Ğ¢gVæ7F–öâ&VÆV6Tw&"†ÖW76vR—°¢6öç7Bw&#×7FFRæw&&&VC¶–b‚w&"—&WGW&ã¶6öç7Bö&¦V7CÖw&"æö&¦V7C°¢–b†w&"æ¶–æBÓÒ'æVÂ"–ö&¦V7Bç“Òãsƒ°¢7FFRæw&&&VCÖçVÆÃ·7FFRçGvô†æEG&ç6f÷&ÓÖçVÆÃ·7FFRç6VÆV7FVCÖçVÆÃ·7FFRç‡%v—&W4F—'G“×G'VS°¢7FFRçg$VF—F÷$ÖW76vSÖÖW76vWÇÂ†w&"æ¶–æCÓÓÒ'æVÂ#ò%”äTÂõ4”4”ôäDò(
+"”ä4R$U4"#¦G¶ö&¦V7Bæ–GÒõ4”4”ôäDò(
+"$ôåDö“·&Vg&W6…e%67&VVâ‚“·WFFT'WGFöç2‚“°¢Ğ¢gVæ7F–öâ&V&6U6–ævÆT†æDw&"††æD–B—°¢6öç7Bw&#×7FFRæw&&&VBÇ6×ÆS×6×ÆTf÷"††æD–B’Ç×ö–çD'&’‡6×ÆSòç–æ6…ö–çB“¶–b‚w&'ÇÂ—&WGW&âfÇ6S°¢w&"æ†æD–CÖ†æD–C¶w&"ç6÷W&6S×6×ÆRç6÷W&6S¶w&"æöfg6WC×·ƒ¦w&"æö&¦V7Bç‚×³ÒÇ£¦w&"æö&¦V7Bç¢×³%×Ó·&WGW&âG'VS°¢Ğ¢gVæ7F–öâ7F'EGvô†æEG&ç6f÷&Ò‡6V6öæD–B—°¢6öç7Bw&#×7FFRæw&&&VC¶–b‚w&'ÇÆw&"æ¶–æCÓÓÒ'æVÂ'ÇÇ6V6öæD–CÓÓÖw&"æ†æD–B—&WGW&âfÇ6S°¢6öç7Bf—'7C×6×ÆTf÷"†w&"æ†æD–B’Ç6V6öæC×6×ÆTf÷"‡6V6öæD–B“¶–b‚f—'7CòçG&6¶VGÇÂ6V6öæCòçG&6¶VGÇÂf—'7Bç–æ6†–æwÇÂ6V6öæBç–æ6†–ær—&WGW&âfÇ6S°¢6öç7BÖf—'7Bç–æ6…ö–çBÆ#×6V6öæBç–æ6…ö–çBÆ6VçFW#×·ƒ¢†ç‚¶"ç‚’ó"Ç“¢†ç’¶"ç’’ó"Ç£¢†ç¢¶"ç¢’ó'Ó°¢7FFRçGvô†æEG&ç6f÷&Ó×·&–Ö'”–C¦w&"æ†æD–BÇ6V6öæF'”–C§6V6öæD–BÆF—7Fæ6S¤ÖF‚æÖ‚‚ãBÄÖF‚æ‡—÷B†ç‚Ö"ç‚Æç’Ö"ç’Æç¢Ö"ç¢’’ÆævÆS¤ÖF‚æFã"†"ç¢Öç¢Æ"ç‚Öç‚’Æ6VçFW"Ç7F'Eƒ¦w&"æö&¦V7Bç‚Ç7F'E£¦w&"æö&¦V7Bç¢Ç66ÆS¦ö&¦V7E66ÆR†w&"æö&¦V7B’Ç&÷FF–öã¦ö&¦V7E&÷FF–öâ†w&"æö&¦V7B—Ó°¢7FFRçg$VF—F÷$ÖW76vSÒ$ET2”ì8t2(
+"d5DR$U44Ä(
+"t•$R$$õD4”ôä"#·&Vg&W6…e%67&VVâ‚“·&WGW&âG'VS°¢Ğ¢gVæ7F–öâWFFUGvô†æEG&ç6f÷&Ò‚—°¢6öç7BG&ç6f÷&Ó×7FFRçGvô†æEG&ç6f÷&ÒÆw&#×7FFRæw&&&VC¶–b‚G&ç6f÷&×ÇÂw&"—&WGW&âfÇ6S°¢6öç7Bf—'7C×6×ÆTf÷"‡G&ç6f÷&Òç&–Ö'”–B’Ç6V6öæC×6×ÆTf÷"‡G&ç6f÷&Òç6V6öæF'”–B“¶–b‚f—'7CòçG&6¶VGÇÂ6V6öæCòçG&6¶VGÇÂf—'7Bç–æ6†–æwÇÂ6V6öæBç–æ6†–ær—&WGW&âfÇ6S°¢6öç7BÖf—'7Bç–æ6…ö–çBÆ#×6V6öæBç–æ6…ö–çBÆ6VçFW#×·ƒ¢†ç‚¶"ç‚’ó"Ç“¢†ç’¶"ç’’ó"Ç£¢†ç¢¶"ç¢’ó'Ó°¢6öç7BF—7Fæ6Tæ÷sÔÖF‚æÖ‚‚ãBÄÖF‚æ‡—÷B†ç‚Ö"ç‚Æç’Ö"ç’Æç¢Ö"ç¢’’ÆævÆTæ÷sÔÖF‚æFã"†"ç¢Öç¢Æ"ç‚Öç‚“°¢w&"æö&¦V7BçƒÔÖF‚æÖ‚‚ÒãsRÄÖF‚æÖ–â‚ãsRÇG&ç6f÷&Òç7F'E‚¶6VçFW"ç‚×G&ç6f÷&Òæ6VçFW"ç‚’“¶w&"æö&¦V7Bç£ÔÖF‚æÖ‚‚ÓãC"ÄÖF‚æÖ–â‚ÒãS‚ÇG&ç6f÷&Òç7F'E¢¶6VçFW"ç¢×G&ç6f÷&Òæ6VçFW"ç¢’“°¢6WDö&¦V7E66ÆR†w&"æö&¦V7BÇG&ç6f÷&Òç66ÆR¦F—7Fæ6Tæ÷r÷G&ç6f÷&ÒæF—7Fæ6R“·6WDö&¦V7E&÷FF–öâ†w&"æö&¦V7BÇG&ç6f÷&Òç&÷FF–öâ¶æ÷&ÖÆ—¦VDævÆR†ævÆTæ÷r×G&ç6f÷&ÒæævÆR’“°¢w&"æö&¦V7BçW6W%Æ6VC×G'VS·7FFRç‡%v—&W4F—'G“×G'VS·&WGW&âG'VS°¢Ğ¢gVæ7F–öâ&Vv–ä†æE–æ6‚‡6×ÆRÆg&ÖR—°¢–b‡7FFRæW‡W&–Væ6RÓÒ'g"'ÇÇ7FFRæÖöFRÓÒ&Æ"'ÇÂ6×ÆRçG&6¶VB—&WGW&ã°¢–b‡7FFRæw&&&VB—·7F'EGvô†æEG&ç6f÷&Ò‡6×ÆRæ–B“·&WGW&ã·Ğ¢6öç7BF—×ö–çD'&’‡6×ÆRæ–æFW…F—’Ç–æ6ƒ×ö–çD'&’‡6×ÆRç–æ6…ö–çB’Æ'WGFöãÖ'WGFöäDf–ævW"‡F—“°¢–b†'WGFöâ—¶7F—fFUe$7F–öâ†'WGFöâçW6W$FFç‡$7F–öâÆg&ÖR“¶'WGFöâç66ÆRç6WB‚ã’Âã’Âã’“·6WEF–ÖV÷WB‚‚“Óæ'WGFöâç66ÆRç6WBƒÃÃ’Ã“·&WGW&ã·Ğ¢–b‡7FFRçv—&–ætÖöFR—¶6öç7BVæGö–çC×–6µv—&UFW&Ö–æÂ†çVÆÂÇ–æ6‚“¶–b†VæGö–çB–6öææV7EFW&Ö–æÂ†VæGö–çB“¶VÇ6W·7FFRçg$VF—F÷$ÖW76vSÒ%”ä4R4ô%$RTÒ”âõRDU$Ô”äÂ#·&Vg&W6…e%67&VVâ‚“·×&WGW&ã·Ğ¢6öç7BæVÃÖf–æEæVÄæV"‡–æ6‚“°¢–b‡æVÂ—¶6öç7Bö–çCÖæWrv–æF÷råD…$TRåfV7F÷#2‚ââç–æ6‚“·7FFRæw&&&VC×¶†æD–C§6×ÆRæ–BÇ6÷W&6S§6×ÆRç6÷W&6RÆö&¦V7C§æVÂç&ö÷BÆ¶–æC¢'æVÂ"ÆF—7Fæ6S¢ãcRÆöfg6WC§æVÂç&ö÷Bç÷6—F–öâæ6ÆöæR‚’ç7V"‡ö–çB—Ó·7FFRçg$VF—F÷$ÖW76vSÒ%”äTÂ$U4ò(
+"ÔõdR%$”ì8t$4ôÅD"#·&Vg&W6…e%67&VVâ‚“·&WGW&ã·Ğ¢6öç7Bö&¦V7CÖ†—Dö&¦V7DæV"‡–æ6‚“¶–b‚ö&¦V7B—&WGW&ã°¢–b†ö&¦V7CÓÓ×7FFRæ&ö&Bbg7FFRæ&ö&DÆö6¶VB—·7FFRçg$VF—F÷$ÖW76vSÒ$U53"d•„ò(
+"”ä4RÄ”$U$"U5$ÔõdU"#·&Vg&W6…e%67&VVâ‚“·&WGW&ã·Ğ¢7FFRæw&&&VC×¶†æD–C§6×ÆRæ–BÇ6÷W&6S§6×ÆRç6÷W&6RÆö&¦V7BÆF—7Fæ6S¢ã"Æöfg6WC§·ƒ¦ö&¦V7Bç‚×–æ6…³ÒÇ£¦ö&¦V7Bç¢×–æ6…³%××Ó·7FFRç6VÆV7FVCÖö&¦V7Bæ–C·7FFRçg$VF—F÷$ÖW76vSÖ)È²G¶ö&¦V7Bæ–GÒ4TÄT4”ôäDò(
+"ÔåDTä„”ì8t·&Vg&W6…e%67&VVâ‚“·WFFT'WGFöç2‚“°¢Ğ¢gVæ7F–öâVæD†æE–æ6‚‡6×ÆR—°¢6öç7Bw&#×7FFRæw&&&VC¶–b‚w&"—&WGW&ã¶6öç7BG&ç6f÷&Ó×7FFRçGvô†æEG&ç6f÷&Ó°¢–b‡G&ç6f÷&Ò—°¢–b‡6×ÆRæ–CÓÓ×G&ç6f÷&Òç6V6öæF'”–B—·7FFRçGvô†æEG&ç6f÷&ÓÖçVÆÃ·&V&6U6–ævÆT†æDw&"‡G&ç6f÷&Òç&–Ö'”–B“·7FFRçg$VF—F÷$ÖW76vSÒ%TÔ”ì8t(
+"4ôåD”åTRÔõdTäDòõR%$$4ôÅD"#·&Vg&W6…e%67&VVâ‚“·&WGW&ã·Ğ¢–b‡6×ÆRæ–CÓÓ×G&ç6f÷&Òç&–Ö'”–B—¶6öç7B&WÆ6VÖVçC×6×ÆTf÷"‡G&ç6f÷&Òç6V6öæF'”–B“·7FFRçGvô†æEG&ç6f÷&ÓÖçVÆÃ¶–b‡&WÆ6VÖVçCòç–æ6†–ærbg&V&6U6–ævÆT†æDw&"‡G&ç6f÷&Òç6V6öæF'”–B’—·7FFRçg$VF—F÷$ÖW76vSÒ$ô$¤UDòE$å4dU$”Dò$õUE$Ü84ò#·&Vg&W6…e%67&VVâ‚“·&WGW&ã·×Ğ¢Ğ¢–b‡6×ÆRæ–CÓÓÖw&"æ†æD–B—&VÆV6Tw&"‡6×ÆRæÆ÷7Cò%$5E$TÔTåDòU$D”Dò(
+"ô$¤UDò4ôÅDò4ôÒ4TuU$ì8t#¦çVÆÂ“°¢Ğ¢gVæ7F–öâWFFT†æDw&"‚—°¢6öç7Bw&#×7FFRæw&&&VC¶–b‚w&#òæ†æD–B—&WGW&ã¶–b‡WFFUGvô†æEG&ç6f÷&Ò‚’—&WGW&ã°¢6öç7B6×ÆS×6×ÆTf÷"†w&"æ†æD–B“¶–b‚6×ÆSòçG&6¶VGÇÂ6×ÆRç–æ6†–ær—&WGW&ã¶6öç7B×ö–çD'&’‡6×ÆRç–æ6…ö–çB“¶–b‚—&WGW&ã°¢–b†w&"æ¶–æCÓÓÒ'æVÂ"—¶w&"æö&¦V7Bç÷6—F–öâç6WB„ÖF‚æÖ‚‚Óã3RÄÖF‚æÖ–âƒã3RÇ³Ò¶w&"æöfg6WBç‚’’ÄÖF‚æÖ‚‚ãs"ÄÖF‚æÖ–âƒ"ãRÇ³Ò¶w&"æöfg6WBç’’’ÄÖF‚æÖ‚‚Óã‚ÄÖF‚æÖ–â‚ã#RÇ³%Ò¶w&"æöfg6WBç¢’’“·&WGW&ã·Ğ¢–b†w&"æö&¦V7CÓÓ×7FFRæ&ö&Bbg7FFRæ&ö&DÆö6¶VB—&WGW&ã°¢w&"æö&¦V7BçƒÔÖF‚æÖ‚‚ÒãsRÄÖF‚æÖ–â‚ãsRÇ³Ò¶w&"æöfg6WBç‚’“¶w&"æö&¦V7Bç“Òãsƒ¶w&"æö&¦V7Bç£ÔÖF‚æÖ‚‚ÓãC"ÄÖF‚æÖ–â‚ÒãS‚Ç³%Ò¶w&"æöfg6WBç¢’“¶w&"æö&¦V7BçW6W%Æ6VC×G'VS°¢–b‡7FFRç‡$6öææV7F–öç2æÆVæwF‚bgW&f÷&Öæ6Rææ÷r‚’Ò‡7FFRæÆ7Ev—&U&Vg&W6‡ÇÃ“ã“—·7FFRç‡%v—&W4F—'G“×G'VS·7FFRæÆ7Ev—&U&Vg&W6ƒ×W&f÷&Öæ6Rææ÷r‚“·Ğ¢Ğ¢gVæ7F–öâWFFT†æDvW7GW&W2†g&ÖRÇF–ÖR—°¢–b‚7FFRæ†æD6öçG&öÆÆW'ÇÂ7FFRç&Ve76R—&WGW&ã¶6öç7B6×ÆW3×7FFRæ†æD6öçG&öÆÆW"çWFFR†g&ÖRÇ7FFRç6W76–öãòæ–çWE6÷W&6W7ÇÅµÒÇ7FFRç&Ve76RÇF–ÖR“·7FFRæ†æE6×ÆW3ÖæWrÖ‡6×ÆW2æÖ‡6×ÆSÓå·6×ÆRæ–BÇ6×ÆUÒ’“°¢f÷"†6öç7B6×ÆRöb6×ÆW2––b‡6×ÆRç7F'FVB–&Vv–ä†æE–æ6‚‡6×ÆRÆg&ÖR“°¢f÷"†6öç7B6×ÆRöb6×ÆW2––b‡6×ÆRæVæFVB–VæD†æE–æ6‚‡6×ÆR“°¢WFFT†æDw&"‚“°¢Ğ¢gVæ7F–öâ&”f÷%6÷W&6R†g&ÖRÇ6÷W&6R—¶6öç7B÷6S×6÷W&6RçF&vWE&•76Rbfg&ÖRævWE÷6Sòâ‡6÷W&6RçF&vWE&•76RÇ7FFRç&Ve76R“·&WGW&â÷6S÷&”g&öÕ÷6R‡÷6R“¦çVÆÃ·Ğ¢gVæ7F–öâ†æEF—†g&ÖRÇ6÷W&6R—¶–b‚6÷W&6Ræ†æGÇÂg&ÖRævWD¦ö–çE÷6R—&WGW&âçVÆÃ¶6öç7B76S×6÷W&6Ræ†æBævWB‚&–æFW‚Öf–ævW"×F—"’Ç÷6S×76Rbfg&ÖRævWD¦ö–çE÷6R‡76RÇ7FFRç&Ve76R“¶–b‚÷6R—&WGW&âçVÆÃ¶6öç7B×÷6RçG&ç6f÷&Òç÷6—F–öã·&WGW&â·ç‚Çç’Çç¥Ó·Ğ¢gVæ7F–öâ'WGFöäDf–ævW"‡F——°¢–b‚F—ÇÂ7FFRç‡%66VæR—&WGW&âçVÆÃ¶6öç7BC×v–æF÷råD…$TRÇö–çCÖæWrBåfV7F÷#2‚ââçF—“·7FFRç‡%66VæRçWFFTÖG&—…v÷&ÆB‡G'VR“°¢f÷"†6öç7B'WGFöâöb–çFW&7F—fUe$'WGFöç2‚’—¶6öç7BÆö6ÃÖ'WGFöâçv÷&ÆEFôÆö6Â‡ö–çBæ6ÆöæR‚’’Ç·v–GFƒÒã"Æ†V–v‡CÒãwÓÖ'WGFöâævVöÖWG'’ç&ÖWFW'7ÇÇ·Ó°¢–b„ÖF‚æ'2†Æö6Âç‚“Ã×v–GF‚ó"²ãbbdÖF‚æ'2†Æö6Âç’“ÃÖ†V–v‡Bó"²ãbbfÆö6Âç£ãÒã2bfÆö6Âç£ÃÒãB—&WGW&â'WGFöã°¢Ğ¢&WGW&âçVÆÃ°¢Ğ¢gVæ7F–öâWFFT†æEF÷V6†W2†g&ÖR—°¢6öç7B7F—fT†æG3ÖæWr6WB‚“¶f÷"†6öç7B6÷W&6Röb7FFRç6W76–öãòæ–çWE6÷W&6W7ÇÅµÒ—¶–b‚6÷W&6Ræ†æB–6öçF–çVS°¢6öç7B6–FS×6÷W&6Ræ†æFVFæW77ÇÂ&æöæR"ÇF÷V6ƒ×7FFRç‡%F÷V6…7FFW2ævWB‡6–FR—ÇÇ¶'WGFöã¦çVÆÂÇv—&TVæGö–çC¦çVÆÇÒÇF—Ö†æEF—†g&ÖRÇ6÷W&6R“°¢7F—fT†æG2æFB‡6–FR“°¢–b‚F——¶–b‡W&f÷&Öæ6Rææ÷r‚’Ò‡F÷V6‚æÆ7E6VVçÇÃ“ãƒ—·F÷V6‚æ'WGFöãÖçVÆÃ·F÷V6‚çv—&TVæGö–çCÖçVÆÃ·×7FFRç‡%F÷V6…7FFW2ç6WB‡6–FRÇF÷V6‚“¶6öçF–çVS·Ğ¢F÷V6‚æÆ7E6VVã×W&f÷&Öæ6Rææ÷r‚“°¢F÷V6‚æ'WGFöãÖ'WGFöäDf–ævW"‡F—“·F÷V6‚æ6æF–FFS×7FFRçv—&–ætÖöFS÷FW&Ö–æÄæV$†æB‡F—“¦çVÆÃ°¢7FFRç‡%F÷V6…7FFW2ç6WB‡6–FRÇF÷V6‚“°¢Öf÷"†6öç7B·6–FRÇF÷V6…Òöb7FFRç‡%F÷V6…7FFW2––b‚7F—fT†æG2æ†2‡6–FR’bgW&f÷&Öæ6Rææ÷r‚’Ò‡F÷V6:×Ûh‘éì¶»§q«^t¥ÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”õM@ÌÈ€‘íİ¥¹‘½Ü¹½‘…MA5½‘•°¹±…‰•°¡¹…µ”¥ôM1%=9<ƒŠˆQ=EU9<A%89=5<<=5A=99Q€ì(€€€É•™É•Í¡YIMÉ••¸ ¤ì(€ô(€™Õ¹Ñ¥½¸½¹¹•ÑQ•Éµ¥¹…°¡•¹‘Á½¥¹Ğ¥ì(€€€¥˜ …•¹‘Á½¥¹Ğ¥É•ÑÕÉ¸™…±Í”ì(€€€¥˜ …ÍÑ…Ñ”¹Á•¹‘¥¹Q•Éµ¥¹…°¥íÍÑ…Ñ”¹Á•¹‘¥¹Q•Éµ¥¹…°õ•¹‘Á½¥¹ĞíÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”õQI5%90è€‘í•¹‘Á½¥¹ÑôƒŠˆM=1!<MU9=€íÉ•™É•Í¡YIMÉ••¸ ¤íÉ•ÑÕÉ¸ÑÉÕ”íô(€€€¥˜¡ÍÑ…Ñ”¹Á•¹‘¥¹Q•Éµ¥¹…°ôôõ•¹‘Á½¥¹Ğ¥íÍÑ…Ñ”¹Á•¹‘¥¹Q•Éµ¥¹…°õ¹Õ±°íÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”ô‰M=1!=%LQI5%9%L%I9QLˆíÉ•™É•Í¡YIMÉ••¸ ¤íÉ•ÑÕÉ¸ÑÉÕ”íô(€€€½¹ÍĞ™¥ÉÍĞõÍÑ…Ñ”¹Á•¹‘¥¹Q•Éµ¥¹…°ì(€€€¥˜¡ÍÑ…Ñ”¹áÉ½¹¹•Ñ¥½¹Ì¹Í½µ” ¡m„±‰t¤ôù„ôôõ™¥ÉÍĞ˜™ˆôôõ•¹‘Á½¥¹Ñññ„ôôõ•¹‘Á½¥¹Ğ˜™ˆôôõ™¥ÉÍĞ¤¥ì(€€€€€ÍÑ…Ñ”¹Á•¹‘¥¹Q•Éµ¥¹…°õ¹Õ±°íÍÑ…Ñ”¹İ¥É¥¹5½‘”õ™…±Í”íÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”ô‰MQLQI5%9%L+MS<1%=LˆíÉ•™É•Í¡YIMÉ••¸ ¤íÉ•ÑÕÉ¸™…±Í”ì(€€€ô(€€€ÍÑ…Ñ”¹áÉ½¹¹•Ñ¥½¹Ì¹ÁÕÍ ¡m™¥ÉÍĞ±•¹‘Á½¥¹Ñt¤ì(€€€ÍÑ…Ñ”¹Á•¹‘¥¹Q•Éµ¥¹…°õ¹Õ±°íÍÑ…Ñ”¹İ¥É¥¹5½‘”õ™…±Í”íÍÑ…Ñ”¹áÉ]¥É•Í¥ÉÑäõÑÉÕ”íÉ•™É•Í¡aI]¥É•Ì ¤ì(€€€¥¹™•ÉYI1•‘A¥¹Ì ¤ì(€€€ÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”õ%<1%<ƒŠˆ€‘í•¹‘Á½¥¹Ñõ€íÉ•™É•Í¡YIMÉ••¸ ¤íÉ•ÑÕÉ¸ÑÉÕ”ì(€ô(€™Õ¹Ñ¥½¸¥¹™•ÉYI1•‘A¥¹Ì ¥ì(€€€½¹ÍĞ½É”õİ¥¹‘½Ü¹½‘…I1…‰½É”í¥˜ …½É”ü¹Í¥µÕ±…Ñ•1•‘MÑ…Ñ•Ì¥É•ÑÕÉ¸ì(€€€½¹ÍĞÁ¥¹ÌõlÀ°Ä°È°Ì°Ğ°Ô°ÄÈ°ÄÌ°ÄĞ°ÄÔ°ÄØ°ÄÜ°Äà°Ää°ÈÄ°ÈÈ°ÈÌ°ÈÔ°ÈØ°ÈÜ°ÌÈ°ÌÍt±½ÕÑÁÕÑÌõ=‰©•Ğ¹™É½µ¹ÑÉ¥•Ì¡Á¥¹Ì¹µ…À¡Á¥¸ôùmÁ¥¸±ÑÉÕ•t¤¤ì(€€€™½È¡½¹ÍĞ±•½˜ÍÑ…Ñ”¹½µÁ½¹•¹ÑÌ¹™¥±Ñ•È¡¥Ñ•´ôù¥Ñ•´¹­¥¹ôôô‰±•ˆ¤¥™½È¡½¹ÍĞÁ¥¸½˜Á¥¹Ì¥ì(€€€€€½¹ÍĞ½µÁ½¹•¹ÑÌõÍÑ…Ñ”¹½µÁ½¹•¹ÑÌ¹µ…À¡¥Ñ•´ôø¡ì¸¸¹¥Ñ•´±ÑåÁ”é¥Ñ•´¹­¥¹‘ññ¥Ñ•´¹ÑåÁ”°¸¸¸¡¥Ñ•´¹¥ôôõ±•¹¥ıíÁ¥¸éA%<‘íÁ¥¹õôéíô¥ô¤¤ì(€€€€€½¹ÍĞ±¥Ğõ½É”¹Í¥µÕ±…Ñ•1•‘MÑ…Ñ•Ì¡í½µÁ½¹•¹ÑÌ±İ¥É•ÌéÍÑ…Ñ”¹áÉ½¹¹•Ñ¥½¹Íô±½ÕÑÁÕÑÌ¤ì(€€€€€¥˜¡±¥Ñm±•¹¥‘t¥í±•¹Á¥¸õA%<‘íÁ¥¹õ€í‰É•…¬íô(€€€ô(€ô(€™Õ¹Ñ¥½¸™¥¹‘A…¹•±!¥Ğ¡É…ä¥ì(€€€¥˜ …É…ä¥É•ÑÕÉ¸¹Õ±°í½¹ÍĞPõİ¥¹‘½Ü¹Q!I±É½½ÑÌõmÍÑ…Ñ”¹ÙÉ‘¥Ñ½ÉI½½Ğ±ÍÑ…Ñ”¹ÙÉ-•å‰½…É‘I½½Ğ±ÍÑ…Ñ”¹ÙÉA¥¹A…¹•±t¹™¥±Ñ•È¡É½½ĞôùÉ½½Ğü¹Ù¥Í¥‰±”¤±…ÍÑ•Èõ¹•ÜP¹I…å…ÍÑ•È¡¹•ÜP¹Y•Ñ½ÈÌ ¸¸¹É…ä¹½É¥¥¸¤±¹•ÜP¹Y•Ñ½ÈÌ ¸¸¹É…ä¹‘¥È¤¹¹½Éµ…±¥é” ¤°À°Ì¤±¡¥Ğõ…ÍÑ•È¹¥¹Ñ•ÉÍ•Ñ=‰©•ÑÌ¡É½½ÑÌ±ÑÉÕ”¥lÁtí¥˜ …¡¥Ğ¥É•ÑÕÉ¸¹Õ±°ì(€€€±•ĞÉ½½Ğõ¡¥Ğ¹½‰©•Ğíİ¡¥±”¡É½½Ğ˜™É½½Ğ„ôõÍÑ…Ñ”¹ÙÉ‘¥Ñ½ÉI½½Ğ˜™É½½Ğ„ôõÍÑ…Ñ”¹ÙÉ-•å‰½…É‘I½½Ğ˜™É½½Ğ„ôõÍÑ…Ñ”¹ÙÉA¥¹A…¹•°¥É½½ĞõÉ½½Ğ¹Á…É•¹Ğì(€€€É•ÑÕÉ¸É½½ĞıíÉ½½Ğ±Á½¥¹Ğé¡¥Ğ¹Á½¥¹Ñôé¹Õ±°ì(€ô(€™Õ¹Ñ¥½¸™¥¹‘A…¹•±9•…È¡Ñ¥À¥ì(€€€¥˜ …Ñ¥À¥É•ÑÕÉ¸¹Õ±°í½¹ÍĞPõİ¥¹‘½Ü¹Q!I±Á½¥¹Ğõ¹•ÜP¹Y•Ñ½ÈÌ ¸¸¹Ñ¥À¤ì(€€€™½È¡½¹ÍĞÉ½½Ğ½˜mÍÑ…Ñ”¹ÙÉ‘¥Ñ½ÉI½½Ğ±ÍÑ…Ñ”¹ÙÉ-•å‰½…É‘I½½Ğ±ÍÑ…Ñ”¹ÙÉA¥¹A…¹•±t¥ì(€€€€€¥˜ …É½½Ğü¹Ù¥Í¥‰±”¥½¹Ñ¥¹Õ”í½¹ÍĞ±½…°õÉ½½Ğ¹İ½É±‘Q½1½…°¡Á½¥¹Ğ¹±½¹” ¤¤ì(€€€€€½¹ÍĞİ¥‘Ñ õÉ½½ĞôôõÍÑ…Ñ”¹ÙÉ‘¥Ñ½ÉI½½ĞüÄ¸ØÈéÉ½½ĞôôõÍÑ…Ñ”¹ÙÉ-•å‰½…É‘I½½ĞüÄ¸ÈÈèÄ¸Èàì(€€€€€½¹ÍĞ¡•¥¡ĞõÉ½½ĞôôõÍÑ…Ñ”¹ÙÉ‘¥Ñ½ÉI½½Ğ€ü€Ä¸Øà€èÉ½½ĞôôõÍÑ…Ñ”¹ÙÉ-•å‰½…É‘I½½Ğ€ü€¸ØØ€è€Ä¸ÄÈì(€€€€€¥˜¡5…Ñ ¹…‰Ì¡±½…°¹à¤ñİ¥‘Ñ ¼È˜™5…Ñ ¹…‰Ì¡±½…°¹ä¤ñ¡•¥¡Ğ¼È˜™±½…°¹èø´¸ÀÌ˜™±½…°¹èğ¸ÄÀ¥É•ÑÕÉ¸íÉ½½Ğ±Á½¥¹Ñôì(€€€õÉ•ÑÕÉ¸¹Õ±°ì(€ô(€™Õ¹Ñ¥½¸‰É¥¹Q…‰±•9•…È¡™É…µ”¥ì(€€€½¹ÍĞÁ½Í”õ™É…µ”ü¹•ÑY¥•İ•ÉA½Í”ü¸¡ÍÑ…Ñ”¹É•™MÁ…”¤±µ…ÑÉ¥àõÁ½Í”ü¹ÑÉ…¹Í™½É´ü¹µ…ÑÉ¥àí¥˜ …µ…ÑÉ¥áñğ…ÍÑ…Ñ”¹áÉQ…‰±”¥É•ÑÕÉ¸ì(€€€½¹ÍĞ™½Éİ…É‘`ôµµ…ÑÉ¥álát±™½Éİ…É‘hôµµ…ÑÉ¥álÄÁt±±•¹Ñ õ5…Ñ ¹¡åÁ½Ğ¡™½Éİ…É‘`±™½Éİ…É‘h¥ñğÄ±Áàõµ…ÑÉ¥álÄÉt±Áèõµ…ÑÉ¥álÄÑt±Ñ…É•Ñ`õÁà­™½Éİ…É‘`½±•¹Ñ ¨¸àÈ±Ñ…É•ÑhõÁè­™½Éİ…É‘h½±•¹Ñ ¨¸àÈì(€€€½¹ÍĞ‘àõÑ…É•Ñ`µÍÑ…Ñ”¹áÉQ…‰±”¹Á½Í¥Ñ¥½¸¹à±‘èõÑ…É•ÑhµÍÑ…Ñ”¹áÉQ…‰±”¹Á½Í¥Ñ¥½¸¹èíÍÑ…Ñ”¹áÉQ…‰±”¹Á½Í¥Ñ¥½¸¹àõÑ…É•Ñ`íÍÑ…Ñ”¹áÉQ…‰±”¹Á½Í¥Ñ¥½¸¹èõÑ…É•Ñhì(€€€ÍÑ…Ñ”¹‰½…É¹à¬õ‘àíÍÑ…Ñ”¹‰½…É¹è¬õ‘èí™½È¡½¹ÍĞ½µÁ½¹•¹Ğ½˜ÍÑ…Ñ”¹½µÁ½¹•¹ÑÌ¥í½µÁ½¹•¹Ğ¹à¬õ‘àí½µÁ½¹•¹Ğ¹è¬õ‘èíô(€€€ÍÑ…Ñ”¹áÉ]¥É•Í¥ÉÑäõÑÉÕ”íÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”ô‰5MQIi%AIAIQ<Y=ˆíÉ•™É•Í¡YIMÉ••¸ ¤ì(€ô(€™Õ¹Ñ¥½¸‰É¥¹A…¹•±Í9•…È¡™É…µ”¥ì(€€€½¹ÍĞÁ½Í”õ™É…µ”ü¹•ÑY¥•İ•ÉA½Í”ü¸¡ÍÑ…Ñ”¹É•™MÁ…”¤±µ…ÑÉ¥àõÁ½Í”ü¹ÑÉ…¹Í™½É´ü¹µ…ÑÉ¥àí¥˜ …µ…ÑÉ¥à¥É•ÑÕÉ¸ì(€€€½¹ÍĞ™àôµµ…ÑÉ¥álát±™èôµµ…ÑÉ¥álÄÁt±±•¹Ñ õ5…Ñ ¹¡åÁ½Ğ¡™à±™è¥ñğÄ±™½Éİ…É‘`õ™à½±•¹Ñ ±™½Éİ…É‘hõ™è½±•¹Ñ ±É¥¡Ñ`õµ…ÑÉ¥álÁt±É¥¡Ñhõµ…ÑÉ¥álÉt±Áàõµ…ÑÉ¥álÄÉt±Áäõµ…ÑÉ¥álÄÍt±Áèõµ…ÑÉ¥álÄÑt±å…Üõ5…Ñ ¹…Ñ…¸È µ™½Éİ…É‘`°µ™½Éİ…É‘h¤ì(€€€¥˜¡ÍÑ…Ñ”¹ÙÉ‘¥Ñ½ÉI½½Ğ¥íÍÑ…Ñ”¹ÙÉ‘¥Ñ½ÉI½½Ğ¹Á½Í¥Ñ¥½¸¹Í•Ğ¡Áà­™½Éİ…É‘`¨¸ÜàµÉ¥¡Ñ`¨¸ĞÈ±Áä´¸ÀĞ±Áè­™½Éİ…É‘h¨¸ÜàµÉ¥¡Ñh¨¸ĞÈ¤íÍÑ…Ñ”¹ÙÉ‘¥Ñ½ÉI½½Ğ¹É½Ñ…Ñ¥½¸¹Í•Ğ À±å…Ü°À¤íô(€€€¥˜¡ÍÑ…Ñ”¹ÙÉ-•å‰½…É‘I½½Ğ¥íÍÑ…Ñ”¹ÙÉ-•å‰½…É‘I½½Ğ¹Á½Í¥Ñ¥½¸¹Í•Ğ¡Áà­™½Éİ…É‘`¨¸ØÈ­É¥¡Ñ`¨¸ĞÌ±Áä´¸ÌĞ±Áè­™½Éİ…É‘h¨¸ØÈ­É¥¡Ñh¨¸ĞÌ¤íÍÑ…Ñ”¹ÙÉ-•å‰½…É‘I½½Ğ¹É½Ñ…Ñ¥½¸¹Í•Ğ ´¸ÄÈ±å…Ü°À¤íô(€€€¥˜¡ÍÑ…Ñ”¹ÙÉ½¬˜™ÍÑ…Ñ”¹ÙÉAÉ½É…µ=Á•¸¥ÍÑ…Ñ”¹ÙÉ½¬¹Á½Í¥Ñ¥½¸¹Í•Ğ¡Áà­™½Éİ…É‘`¨¸àÀ­É¥¡Ñ`¨¸äÀ±Áä¬¸Èà±Áè­™½Éİ…É‘h¨¸àÀ­É¥¡Ñh¨¸äÀ¤ì(€€€¥˜¡ÍÑ…Ñ”¹ÙÉA¥¹A…¹•±=Á•¸¥‰É¥¹A¥¹A…¹•±9•…È¡™É…µ”¤ì(€ô(€™Õ¹Ñ¥½¸½¹M•±•ÑMÑ…ÉĞ¡•Ù•¹Ğ¥ì(€€€¥˜¡ÍÑ…Ñ”¹•áÁ•É¥•¹”„ôô‰ÙÈ‰ññÍÑ…Ñ”¹µ½‘”„ôô‰±…ˆˆ¥É•ÑÕÉ¸ì(€€€€¼¼A¥»…Ì‘”·¼Ï¼±…ÍÍ¥™¥…‘…ÌÁ½È‘¥ÍÓ‰¹¥„‘½Ì‘•‘½Ì°½´¡¥ÍÑ•É•Í””(€€€€¼¼ÍÕ…Ù¥é‡Ÿ¼¸<•Ù•¹Ñ¼Í•±•Ğ™¥„É•Í•ÉÙ…‘¼…½Ì½¹ÑÉ½±•Ì›µÍ¥½Ì¸(€€€¥˜¡•Ù•¹Ğ¹¥¹ÁÕÑM½ÕÉ”ü¹¡…¹¥É•ÑÕÉ¸ì(€€€½¹ÍĞ™É…µ”õ•Ù•¹Ğ¹™É…µ”±Í½ÕÉ”õ•Ù•¹Ğ¹¥¹ÁÕÑM½ÕÉ”±É…äõÉ…å½ÉM½ÕÉ”¡™É…µ”±Í½ÕÉ”¤±Ñ¥Àõ¡…¹‘Q¥À¡™É…µ”±Í½ÕÉ”¤±‰ÕÑÑ½¸õÍ½ÕÉ”¹¡…¹ı‰ÕÑÑ½¹Ñ¥¹•È¡Ñ¥À¤é¡¥ÑYI	ÕÑÑ½¸¡É…ä±¹Õ±°¤ì(€€€¥˜¡‰ÕÑÑ½¸¥í…Ñ¥Ù…Ñ•YIÑ¥½¸¡‰ÕÑÑ½¸¹ÕÍ•É…Ñ„¹áÉÑ¥½¸±™É…µ”¤í‰ÕÑÑ½¸¹Í…±”¹Í•Ğ ¸ä°¸ä°¸ä¤íÍ•ÑQ¥µ•½ÕĞ  ¤ôù‰ÕÑÑ½¸¹Í…±”¹Í•Ğ Ä°Ä°Ä¤°ÄÄÀ¤íÉ•ÑÕÉ¸íô(€€€¥˜¡ÍÑ…Ñ”¹İ¥É¥¹5½‘”¥ì(€€€€€½¹ÍĞ•¹‘Á½¥¹ĞõÁ¥­]¥É•Q•Éµ¥¹…°¡Í½ÕÉ”¹¡…¹ı¹Õ±°éÉ…ä±Ñ¥À¤±Í¥‘”õÍ½ÕÉ”¹¡…¹‘•‘¹•ÍÍñğ‰¹½¹”ˆ±Ñ½Õ õÍÑ…Ñ”¹áÉQ½Õ¡MÑ…Ñ•Ì¹•Ğ¡Í¥‘”¥ññí‰ÕÑÑ½¸é¹Õ±°±İ¥É•¹‘Á½¥¹Ğé¹Õ±±ôì(€€€€€¥˜¡•¹‘Á½¥¹Ğ˜™Ñ½Õ ¹İ¥É•¹‘Á½¥¹Ğ„ôõ•¹‘Á½¥¹Ğ¥í½¹¹•ÑQ•Éµ¥¹…°¡•¹‘Á½¥¹Ğ¤í¥˜¡Í½ÕÉ”¹¡…¹¥íÑ½Õ ¹İ¥É•¹‘Á½¥¹Ğõ•¹‘Á½¥¹ĞíÍÑ…Ñ”¹áÉQ½Õ¡MÑ…Ñ•Ì¹Í•Ğ¡Í¥‘”±Ñ½Õ ¤íõô(€€€€€•±Í”¥˜ …•¹‘Á½¥¹Ğ˜™Í½ÕÉ”¹¡…¹¥íÑ½Õ ¹İ¥É•¹‘Á½¥¹Ğõ¹Õ±°íÍÑ…Ñ”¹áÉQ½Õ¡MÑ…Ñ•Ì¹Í•Ğ¡Í¥‘”±Ñ½Õ ¤íô(€€€€€•±Í”¥˜ …•¹‘Á½¥¹Ğ¥íÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”ô‰Q=EU4U4A%8=TQI5%90ˆíÉ•™É•Í¡YIMÉ••¸ ¤íô(€€€€€É•ÑÕÉ¸ì(€€€ô(€€€½¹ÍĞÁ…¹•°õÍ½ÕÉ”¹¡…¹ı™¥¹‘A…¹•±9•…È¡Ñ¥À¤é™¥¹‘A…¹•±!¥Ğ¡É…ä¤ì(€€€¥˜¡Á…¹•°¥í½¹ÍĞÁ½¥¹ĞõÑ¥Àı¹•Üİ¥¹‘½Ü¹Q!I¹Y•Ñ½ÈÌ ¸¸¹Ñ¥À¤éÁ…¹•°¹Á½¥¹Ğ±‘¥ÍÑ…¹”õÉ…äı¹•Üİ¥¹‘½Ü¹Q!I¹Y•Ñ½ÈÌ ¸¸¹É…ä¹½É¥¥¸¤¹‘¥ÍÑ…¹•Q¼¡Á…¹•°¹Á½¥¹Ğ¤è¸ØÔíÍÑ…Ñ”¹É…‰‰•õíÍ½ÕÉ”±½‰©•ĞéÁ…¹•°¹É½½Ğ±­¥¹è‰Á…¹•°ˆ±‘¥ÍÑ…¹”±½™™Í•ĞéÁ…¹•°¹É½½Ğ¹Á½Í¥Ñ¥½¸¹±½¹” ¤¹ÍÕˆ¡Á½¥¹Ğ¥ôíÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”ô‰A%90AIM<ƒŠˆ5=YM=1QA%9ˆíÉ•™É•Í¡YIMÉ••¸ ¤íÉ•ÑÕÉ¸íô(€€€½¹ÍĞ½‰©•Ğõ¡¥Ñ=‰©•Ñ9•…È¡Ñ¥À¥ññ¡¥Ñ=‰©•Ğ¡É…ä¤í¥˜ …½‰©•Ğ¥É•ÑÕÉ¸ì(€€€¥˜¡½‰©•ĞôôõÍÑ…Ñ”¹‰½…É˜™ÍÑ…Ñ”¹‰½…É‘1½­•¥íÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”ô‰M@ÌÈ%a<ƒŠˆQ=EU41%	IHM@AI5=YHˆíÉ•™É•Í¡YIMÉ••¸ ¤íÉ•ÑÕÉ¸íô(€€€½¹ÍĞÉ…‰¥ÍÑ…¹”õÑ¥Àü¹±•¹Ñ üÀ¸ÄÈè¡É…äı5…Ñ ¹µ…à ¸Äà±5…Ñ ¹¡åÁ½Ğ¡½‰©•Ğ¹àµÉ…ä¹½É¥¥¹lÁt±½‰©•Ğ¹äµÉ…ä¹½É¥¥¹lÅt±½‰©•Ğ¹èµÉ…ä¹½É¥¥¹lÉt¤¤è¸ÜÈ¤ì(€€€½¹ÍĞÀõÑ¥Áñğ¡É…äımÉ…ä¹½É¥¥¹lÁt­É…ä¹‘¥ÉlÁt©É…‰¥ÍÑ…¹”±É…ä¹½É¥¥¹lÅt­É…ä¹‘¥ÉlÅt©É…‰¥ÍÑ…¹”±É…ä¹½É¥¥¹lÉt­É…ä¹‘¥ÉlÉt©É…‰¥ÍÑ…¹•tém½‰©•Ğ¹à±½‰©•Ğ¹ä±½‰©•Ğ¹ét¤ì(€€€ÍÑ…Ñ”¹É…‰‰•õíÍ½ÕÉ”±½‰©•Ğ±‘¥ÍÑ…¹”éÉ…‰¥ÍÑ…¹”±½™™Í•Ğéíàé½‰©•Ğ¹àµÁlÁt±èé½‰©•Ğ¹èµÁlÉuõôíÍÑ…Ñ”¹Í•±•Ñ•õ½‰©•Ğ¹¥íÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”õƒŠr,€‘í½‰©•Ğ¹¥‘ôAIM<ƒ 7=€íÉ•™É•Í¡YIMÉ••¸ ¤íÕÁ‘…Ñ•	ÕÑÑ½¹Ì ¤ì(€ô(€™Õ¹Ñ¥½¸½¹M•±•Ñ¹¡•Ù•¹Ğ¥ì(€€€¥˜¡•Ù•¹Ğ¹¥¹ÁÕÑM½ÕÉ”ü¹¡…¹¥É•ÑÕÉ¸ì(€€€¥˜ …ÍÑ…Ñ”¹É…‰‰•‘ññÍÑ…Ñ”¹É…‰‰•¹Í½ÕÉ”„ôõ•Ù•¹Ğ¹¥¹ÁÕÑM½ÕÉ”¥É•ÑÕÉ¸í½¹ÍĞÉ…ˆõÍÑ…Ñ”¹É…‰‰•±½‰©•ĞõÉ…ˆ¹½‰©•Ğì(€€€É•±•…Í•É…ˆ¡É…ˆ¹­¥¹ôôô‰Á…¹•°ˆü‰A%90A=M%%=9<ƒŠˆQ=EUAIUMHˆé€‘í½‰©•Ğ¹¥‘ôA=M%%=9<ƒŠˆAI=9Q=€¤ì(€ô((€™Õ¹Ñ¥½¸Á±…•Ñ!¥Ğ¡½‰¨¥ì¥˜ …ÍÑ…Ñ”¹±…ÍÑ!¥Ğ¤É•ÑÕÉ¸™…±Í”ì½‰¨¹àõÍÑ…Ñ”¹±…ÍÑ!¥ÑlÄÉtì½‰¨¹äõÍÑ…Ñ”¹±…ÍÑ!¥ÑlÄÍtì½‰¨¹èõÍÑ…Ñ”¹±…ÍÑ!¥ÑlÄÑtìÉ•ÑÕÉ¸ÑÉÕ”ìô(€™Õ¹Ñ¥½¸Á±…•±½¹I…ä¡½‰¨±É…ä±‘¥ÍÑ…¹”ô¸àÔ¥í½‰¨¹àõÉ…ä¹½É¥¥¹lÁt­É…ä¹‘¥ÉlÁt©‘¥ÍÑ…¹”í½‰¨¹äõÉ…ä¹½É¥¥¹lÅt­É…ä¹‘¥ÉlÅt©‘¥ÍÑ…¹”í½‰¨¹èõÉ…ä¹½É¥¥¹lÉt­É…ä¹‘¥ÉlÉt©‘¥ÍÑ…¹”í½‰¨¹ÕÍ•ÉA±…•õÑÉÕ”íÉ•ÑÕÉ¸ÑÉÕ”íô(€™Õ¹Ñ¥½¸½¹M•±•Ğ¡•Ù•¹Ğ¥ì(€€€¥˜¡ÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆ¥É•ÑÕÉ¸ì(€€€½¹ÍĞ™É…µ”õ•Ù•¹Ğ¹™É…µ”°Í½ÕÉ”õ•Ù•¹Ğ¹¥¹ÁÕÑM½ÕÉ”ì½¹ÍĞÉ…åA½Í”õ™É…µ”¹•ÑA½Í”¡Í½ÕÉ”¹Ñ…É•ÑI…åMÁ…”±ÍÑ…Ñ”¹É•™MÁ…”¤ì½¹ÍĞ¡¥ĞõÉ…åA½Í”ı¡¥Ñ=‰©•Ğ¡É…åÉ½µA½Í”¡É…åA½Í”¤¤é¹Õ±°ì(€€€½¹ÍĞÉ…äõÉ…åA½Í”ıÉ…åÉ½µA½Í”¡É…åA½Í”¤é¹Õ±°ì(€€€¥˜ …ÍÑ…Ñ”¹Á±…•¥ì¥˜¡Á±…•Ñ!¥Ğ¡ÍÑ…Ñ”¹‰½…É¤¥ìÍÑ…Ñ”¹Á±…•õÑÉÕ”ì…ÉÉ…¹•½µÁ½¹•¹ÑÌ ¤ìÍ•ÑMÑ…ÑÕÌ ‰M@ÌÈÁ½Í¥¥½¹…‘¼ˆ°‰Á±…„™¥½Ô…¹½É…‘„¹•ÍÑ„Í•ÍÏ¼¸Á½¹Ñ”½Á¥»”Á…É„¥¹Ñ•É…¥È¸ˆ°‰½¬ˆ¤ìôÉ•ÑÕÉ¸ìô(€€€¥˜¡ÍÑ…Ñ”¹µ½‘”ôôô‰Ù¥•Üˆ¥ì¥˜¡Á±…•Ñ!¥Ğ¡ÍÑ…Ñ”¹‰½…É¤¤Ñ½…ÍĞ ‰M@ÌÈÉ•Á½Í¥¥½¹…‘¼¹„‰…¹…‘„ˆ¤ìÉ•ÑÕÉ¸ìô(€€€¥˜¡¡¥Ğ¥ìÍÑ…Ñ”¹Í•±•Ñ•õ¡¥Ğ¹¥ìÍ•ÑMÑ…ÑÕÌ ‰=‰©•Ñ¼Í•±•¥½¹…‘¼ˆ±€‘í¡¥Ğ¹¥‘ô¸Á½¹Ñ”Á…É„½ÕÑÉ¼Á½¹Ñ¼‘„‰…¹…‘„”Á¥»”½…Á•ÉÑ”¹½Ù…µ•¹Ñ”Á…É„µ½Ù•È¹€°‰½¬ˆ¤ìÕÁ‘…Ñ•	ÕÑÑ½¹Ì ¤ìÉ•ÑÕÉ¸ìô(€€€¥˜¡ÍÑ…Ñ”¹Í•±•Ñ•¥ì½¹ÍĞ½‰¨õÍÑ…Ñ”¹Í•±•Ñ•ôôô‰M@ÌÈˆıÍÑ…Ñ”¹‰½…ÉéÍÑ…Ñ”¹½µÁ½¹•¹ÑÌ¹™¥¹¡àôùà¹¥ôôõÍÑ…Ñ”¹Í•±•Ñ•¤ì½¹ÍĞµ½Ù•õ½‰¨˜˜¡ÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰…ÈˆıÁ±…•Ñ!¥Ğ¡½‰¨¤è¡É…ä˜™Á±…•±½¹I…ä¡½‰¨±É…ä¤¤¤ì¥˜¡µ½Ù•¥ìÑ½…ÍĞ¡€‘í½‰¨¹¥‘ôµ½Ù¥‘½€¤ìÍÑ…Ñ”¹Í•±•Ñ•õ¹Õ±°ìÕÁ‘…Ñ•	ÕÑÑ½¹Ì ¤ìôô(€ô((€™Õ¹Ñ¥½¸…ÉÉ…¹•½µÁ½¹•¹ÑÌ ¥ì¥˜ …ÍÑ…Ñ”¹Á±…•¤É•ÑÕÉ¸ìÍÑ…Ñ”¹½µÁ½¹•¹ÑÌ¹™½É…  ¡¼±¤¤ôùì¥˜¡¼¹ÕÍ•ÉA±…•¥É•ÑÕÉ¸ì½¹ÍĞÙÈõÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆí¼¹àõÍÑ…Ñ”¹‰½…É¹à¬¡ÙÈ€ü€¸ÈÜ€è€¸ÄÀ¤¬¡¤”È¤¨¡ÙÈ€ü€¸Äà€è€¸ÀÔÔ¤í¼¹äõÍÑ…Ñ”¹‰½…É¹äí¼¹èõÍÑ…Ñ”¹‰½…É¹è¬¡ÙÈ€ü€À€è€´¸ÀÌ¤­5…Ñ ¹™±½½È¡¤¼È¤¨¡ÙÈ€ü€¸ÄĞ€è€¸ÀØ¤ìô¤ìô(€™Õ¹Ñ¥½¸±½…‘YIá…µÁ±” ¥ì(€€€½¹ÍĞ•á…µÁ±”õİ¥¹‘½Ü¹½‘…I1…‰½É”ü¹µ…­•á…µÁ±”ü¸ È¤í¥˜ …•á…µÁ±”¥É•ÑÕÉ¸ì(€€€ÍÑ…Ñ”¹ÙÉIÕ¹Ñ¥µ”ü¹ÍÑ½Àü¸ ¤íÍÑ…Ñ”¹½µÁ½¹•¹ÑÌõ•á…µÁ±”¹½µÁ½¹•¹ÑÌ¹µ…À¡¥Ñ•´ôø¡í¥é¥Ñ•´¹¥±­¥¹é¥Ñ•´¹ÑåÁ”±Á¥¸é¥Ñ•´¹Á¥¸±½¡µÌé¥Ñ•´¹½¡µÌ±àèÀ±äè¸Üà±èè´Ä±ÕÍ•ÉA±…•é™…±Í•ô¤¤ì(€€€…ÉÉ…¹•½µÁ½¹•¹ÑÌ ¤íÍÑ…Ñ”¹áÉ½¹¹•Ñ¥½¹Ìõ•á…µÁ±”¹İ¥É•Ì¹µ…À¡Á…¥Èôùl¸¸¹Á…¥Ét¤íÍÑ…Ñ”¹ÙÉ½‘”õ•á…µÁ±”¹½‘”ì(€€€ÍÑ…Ñ”¹Á•¹‘¥¹Q•Éµ¥¹…°õ¹Õ±°íÍÑ…Ñ”¹İ¥É¥¹5½‘”õ™…±Í”íÍÑ…Ñ”¹ÙÉ1¥Ñ-•äõ¹Õ±°íÍÑ…Ñ”¹áÉ]¥É•Í¥ÉÑäõÑÉÕ”ì(€€€É•¹‘•É½µÁ½¹•¹Ñ1¥ÍĞ ¤íÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”ô‰a5A1<AI=9Q<ƒŠˆQ=EUIU8AIM%5U1HˆíÍ…Ù•YI½‘” ¤ì(€ô(€™Õ¹Ñ¥½¸…‘‘½µÁ½¹•¹Ğ¡­¥¹¥ì½¹ÍĞ¹…µ•Ìõí±•è‰1ˆ±É•Í¥ÍÑ½Èè‰Hˆ±‰ÕÑÑ½¸è‰	Q8ˆ±Í•¹Í½Èè‰!‰ô±¥õ€‘í¹…µ•Ím­¥¹‘uñğ‰@‰ô‘íÍÑ…Ñ”¹½µÁ½¹•¹ÑÌ¹™¥±Ñ•È¡àôùà¹­¥¹ôôõ­¥¹¤¹±•¹Ñ ¬Åõ€ìÍÑ…Ñ”¹½µÁ½¹•¹ÑÌ¹ÁÕÍ ¡í¥±­¥¹±Á¥¸é­¥¹ôôô‰±•ˆü‰A%<ÈˆéÕ¹‘•™¥¹•±àéÍÑ…Ñ”¹‰½…É¹à¬À¸ÈÜ±äéÍÑ…Ñ”¹‰½…É¹ä±èéÍÑ…Ñ”¹‰½…É¹è±½¹¹•Ñ•é™…±Í”±ÕÍ•ÉA±…•é™…±Í•ô¤ì…ÉÉ…¹•½µÁ½¹•¹ÑÌ ¤íÍÑ…Ñ”¹áÉ]¥É•Í¥ÉÑäõÑÉÕ”íÍÑ…Ñ”¹ÙÉ1¥Ñ-•äõ¹Õ±°ìÉ•¹‘•É½µÁ½¹•¹Ñ1¥ÍĞ ¤ìÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”õ€‘í¥‘ô%%=9<ƒŠˆII=47=€íÉ•™É•Í¡YIMÉ••¸ ¤íÑ½…ÍĞ¡€‘í­¥¹‘ô…‘¥¥½¹…‘¼…¼±…‰½É…ÓÍÉ¥½€¤ìô(€™Õ¹Ñ¥½¸É•¹‘•É½µÁ½¹•¹Ñ1¥ÍĞ ¥ì½¹ÍĞ•°ô ˆ…É½µÁ½¹•¹Ñ1¥ÍĞˆ¤ì¥˜¡•°¤•°¹¥¹¹•É!Q50õÍÑ…Ñ”¹½µÁ½¹•¹ÑÌ¹±•¹Ñ ıÍÑ…Ñ”¹½µÁ½¹•¹ÑÌ¹µ…À¡àôù€ñÍÁ…¸ø‘íà¹­¥¹ôôô‰±•ˆü‹Â~J„ˆè‹ŠZÀ‰ô€‘íà¹¥‘ôğ½ÍÁ…¸ù€¤¹©½¥¸ ˆˆ¤èˆñÍµ…±°ù9•¹¡Õ´½µÁ½¹•¹Ñ”…‘¥¥½¹…‘¼¸ğ½Íµ…±°øˆìô((€…Íå¹Œ™Õ¹Ñ¥½¸•¹Ñ•ÉH¡½ÁÑ¥½¹Ìõíô¥ì(€€€¥˜¡ÍÑ…Ñ”¹Í•ÍÍ¥½¸¤É•ÑÕÉ¸ÑÉÕ”ì(€€€ÍÑ…Ñ”¹‘•Ù¥”õ½ÁÑ¥½¹Ì¹‘•Ù¥•ñğ‰¡•…‘Í•Ğˆì(€€€ÍÑ…Ñ”¹•áÁ•É¥•¹”õ½ÁÑ¥½¹Ì¹•áÁ•É¥•¹•ñğ ‰m‘…Ñ„µáÈµ•áÁ•É¥•¹•t¹…Ñ¥Ù”ˆ¤ü¹‘…Ñ…Í•Ğ¹áÉáÁ•É¥•¹•ññÍÑ…Ñ”¹•áÁ•É¥•¹•ñğ‰ÙÈˆì(€€€½¹ÍĞÍÑ…ÑÕÌõÍÑ…Ñ”¹‘•Ù¥”ôôô‰µ½‰¥±”ˆıÍ•Ñ5½‰¥±•MÑ…ÑÕÌéÍ•ÑMÑ…ÑÕÌì(€€€ÍÑ…Ñ”¹µ½‘”õÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆü‰±…ˆˆè¡½ÁÑ¥½¹Ì¹µ½‘•ñğ ‰m‘…Ñ„µ…Èµµ½‘•t¹…Ñ¥Ù”ˆ¤ü¹‘…Ñ…Í•Ğ¹…É5½‘•ñğ‰Ù¥•Üˆ¤ìÍÑ…Ñ”¹Í•±•Ñ•õ¹Õ±°ìÍÑ…Ñ”¹Á±…•õ™…±Í”ì(€€€€ m‘…Ñ„µ…Èµµ½‘•tœ¤¹™½É… ¡‰Ñ¸ôù‰Ñ¸¹±…ÍÍ1¥ÍĞ¹Ñ½±” ‰…Ñ¥Ù”ˆ±‰Ñ¸¹‘…Ñ…Í•Ğ¹…É5½‘”ôôõÍÑ…Ñ”¹µ½‘”¤¤ì(€€€½¹ÍĞÑ½½±Ìô ˆ…É1…‰Q½½±Ìˆ¤ì¥˜¡Ñ½½±Ì¤Ñ½½±Ì¹¡¥‘‘•¸õÍÑ…Ñ”¹µ½‘”„ôô‰±…ˆˆì((€€€€¼¼¡…µ…‘„‘”É•ÅÕ•ÍÑM•ÍÍ¥½¸ÁÉ•¥Í„…½¹Ñ••È‘¥É•Ñ…µ•¹Ñ”„Á…ÉÑ¥È‘¼±¥ÅÕ”(€€€€¼¼‘¼ÕÍ×…É¥¼¸A½È¥ÍÍ¼»¼…Õ…É‘…µ½Ì¡•­MÕÁÁ½ÉĞ ¤…¹Ñ•Ì‘”Í½±¥¥Ñ…È„I¸(€€€¥˜ …İ¥¹‘½Ü¹¥ÍM•ÕÉ•½¹Ñ•áĞ¥ì(€€€€€ÍÑ…Ñ”¹ÍÕÁÁ½ÉÑ•õ™…±Í”ìÍÑ…Ñ”¹¡•­•õÑÉÕ”ì(€€€€€ÍÑ…ÑÕÌ ‰!QQAL¹••ÍÏ…É¥¼ˆ±ÍÑ…Ñ”¹‘•Ù¥”ôôô‰µ½‰¥±”ˆü‰‰É„¼=Á½È!QQALÁ…É„±¥‰•É…È„‰µ•É„½I‘¼•±Õ±…È¸ˆè‰‰É„¼=Á½È!QQAL¹¼ƒÍÕ±½ÌÁ…É„¥¹¥¥…È„É•…±¥‘…‘”…Õµ•¹Ñ…‘„¸ˆ°‰İ…É¸ˆ¤ì(€€€€€ÕÁ‘…Ñ•	ÕÑÑ½¹Ì ¤ìÉ•ÑÕÉ¸™…±Í”ì(€€€ô(€€€¥˜ …¹…Ù¥…Ñ½È¹áÈ¥ì(€€€€€ÍÑ…Ñ”¹ÍÕÁÁ½ÉÑ•õ™…±Í”ìÍÑ…Ñ”¹¡•­•õÑÉÕ”ì(€€€€€ÍÑ…ÑÕÌ ‰]•‰aH»¼•¹½¹ÑÉ…‘¼ˆ±ÍÑ…Ñ”¹‘•Ù¥”ôôô‰µ½‰¥±”ˆü‰<¹…Ù•…‘½È»¼½™•É•”]•‰aH¸<=Á½‘”ÕÍ…È¼µ½‘¼‰µ•É„½µ¼…±Ñ•É¹…Ñ¥Ù„¸ˆè‰‰É„•ÍÑ„Ã…¥¹„¹¼¹…Ù•…‘½È‘¼ƒÍÕ±½Ì½µÁ…ÓµÙ•°½´]•‰aH¸ˆ°‰İ…É¸ˆ¤ì(€€€€€ÕÁ‘…Ñ•	ÕÑÑ½¹Ì ¤ìÉ•ÑÕÉ¸™…±Í”ì(€€€ô((€€€ÑÉåì(€€€€€ÍÑ…ÑÕÌ¡ÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆü‰‰É¥¹‘¼…µ‰¥•¹Ñ”Ù¥ÉÑÕ…°ˆè‰‰É¥¹‘¼É•…±¥‘…‘”…Õµ•¹Ñ…‘„ˆ±ÍÑ…Ñ”¹‘•Ù¥”ôôô‰µ½‰¥±”ˆü‰ÕÑ½É¥é”„‰µ•É„½I¸•Á½¥Ì…Á½¹Ñ”¼•±Õ±…ÈÁ…É„„µ•Í„¸ˆéÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆü‰½±½ÅÕ”¼ƒÍÕ±½Ì”…ÕÑ½É¥é”„Í•ÍÏ¼]•‰aH¸ˆè‰ÕÑ½É¥é”¼Á…ÍÍÑ¡É½Õ Í”¼ƒÍÕ±½ÌÁ•‘¥È¸•Á½¥Ì½±¡”Á…É„„‰…¹…‘„¸ˆ¤ì(€€€€€¥˜ …ÍÑ…Ñ”¹°¤¥¹¥Ñ0 ¤ì(€€€€€½¹ÍĞÍ•ÍÍ¥½¹QåÁ”õÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆü‰¥µµ•ÉÍ¥Ù”µÙÈˆè‰¥µµ•ÉÍ¥Ù”µ…Èˆì(€€€€€½¹ÍĞ½ÁÑÌõÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆ(€€€€€€€€ıíÉ•ÅÕ¥É•‘•…ÑÕÉ•Ìél‰±½…°µ™±½½È‰t±½ÁÑ¥½¹…±•…ÑÕÉ•Ìél‰¡…¹µÑÉ…­¥¹œˆ°‰‰½Õ¹‘•µ™±½½È‰uô(€€€€€€€€éíÉ•ÅÕ¥É•‘•…ÑÕÉ•Ìél‰±½…°µ™±½½È‰t±½ÁÑ¥½¹…±•…ÑÕÉ•Ìél‰¡¥ĞµÑ•ÍĞˆ°‰¡…¹µÑÉ…­¥¹œˆ°‰‘½´µ½Ù•É±…ä‰t±‘½µ=Ù•É±…äéíÉ½½Ğè ˆ•ÍÁIA…¹•°ˆ¥õôì(€€€€€€¼¼%5A=IQ9QèÉ•ÅÕ•ÍÑM•ÍÍ¥½¸ƒ¤¡…µ…‘¼…¹Ñ•Ì‘”ÅÕ…±ÅÕ•È…İ…¥ĞÁ…É„ÁÉ•Í•ÉÙ…È(€€€€€€¼¼„…Ñ¥Ù‡Ÿ¼ÑÉ…¹Í¥ÓÍÉ¥„•É…‘„Á•±¼±¥ÅÕ”¹¼‰½Ó¼ƒÂ~–ô¸(€€€€€½¹ÍĞÍ•ÍÍ¥½¹AÉ½µ¥Í”õ¹…Ù¥…Ñ½È¹áÈ¹É•ÅÕ•ÍÑM•ÍÍ¥½¸¡Í•ÍÍ¥½¹QåÁ”±½ÁÑÌ¤ì(€€€€€½¹ÍĞÍ•ÍÍ¥½¸õ…İ…¥ĞÍ•ÍÍ¥½¹AÉ½µ¥Í”ìÍÑ…Ñ”¹Í•ÍÍ¥½¸õÍ•ÍÍ¥½¸ìÍÑ…Ñ”¹ÍÕÁÁ½ÉÑ•õÑÉÕ”ìÍÑ…Ñ”¹¡•­•õÑÉÕ”ì(€€€€€…İ…¥ĞÍÑ…Ñ”¹áÉI•¹‘•É•È¹áÈ¹Í•ÑM•ÍÍ¥½¸¡Í•ÍÍ¥½¸¤ì(€€€ÍÑ…Ñ”¹áÉM•¹”¹‰…­É½Õ¹õÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆı¹•Üİ¥¹‘½Ü¹Q!I¹½±½È ÁàÄĞÁ„ÈÌ¤é¹Õ±°ì(€€€€€¥˜¡ÍÑ…Ñ”¹áÉI½½´¥ÍÑ…Ñ”¹áÉI½½´¹Ù¥Í¥‰±”õÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆì(€€€€€¥˜¡ÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆ¥ì(€€€€€€€ÍÑ…Ñ”¹Á±…•õÑÉÕ”í=‰©•Ğ¹…ÍÍ¥¸¡ÍÑ…Ñ”¹‰½…É±íàèÀ±äè¸Üà±èè´Åô¤ì(€€€€€€€¥˜ …ÍÑ…Ñ”¹½µÁ½¹•¹ÑÌ¹±•¹Ñ ¥í…‘‘½µÁ½¹•¹Ğ ‰±•ˆ¤í…‘‘½µÁ½¹•¹Ğ ‰É•Í¥ÍÑ½Èˆ¤íô(€€€€€€€…ÉÉ…¹•½µÁ½¹•¹ÑÌ ¤ì(€€€€€€€ÑÉåíÍÑ…Ñ”¹ÙÉ½‘”õ±½…±MÑ½É…”¹•Ñ%Ñ•´ ‰½‘„µÙÈµÍ­•Ñ µØÄĞØˆ¤üü ˆ•ÍÁ¥Éµİ…É•½‘”ˆ¤ü¹Ù…±Õ”üıYI}5<íõ…Ñ¡íÍÑ…Ñ”¹ÙÉ½‘”õYI}5<íô(€€€€€€€ÍÑ…Ñ”¹‰½…É‘1½­•õ™…±Í”íÍÑ…Ñ”¹ÙÉAÉ½É…µ=Á•¸õ™…±Í”íÍÑ…Ñ”¹ÙÉ-•å‰½…É‘=Á•¸õ™…±Í”íÍÑ…Ñ”¹ÙÉ‘¥Ñ½É5•ÍÍ…”ô‰AI=9Q<ƒŠˆQ=EUAI=I5HAI	I%H<%Q=HˆíÉ•™É•Í¡YIMÉ••¸ ¤ì(€€€€€ô(€€€€€¥˜¡ÍÑ…Ñ”¹áÉ¥ÉÕ¥ÑM¹…ÁÍ¡½Ğ¥¥µÁ½ÉÑAÉ½Ñ½ÑåÁ” ¤ì(€€€€€ÍÑ…Ñ”¹É•™MÁ…”õÍÑ…Ñ”¹áÉI•¹‘•É•È¹áÈ¹•ÑI•™•É•¹•MÁ…” ¤ìÍÑ…Ñ”¹Ù¥•İ•ÉMÁ…”õ…İ…¥ĞÍ•ÍÍ¥½¸¹É•ÅÕ•ÍÑI•™•É•¹•MÁ…” ‰Ù¥•İ•Èˆ¤ì(€€€€€¥˜¡ÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰…Èˆ¥íÑÉåìÍÑ…Ñ”¹¡¥ÑM½ÕÉ”õ…İ…¥ĞÍ•ÍÍ¥½¸¹É•ÅÕ•ÍÑ!¥ÑQ•ÍÑM½ÕÉ”¡íÍÁ…”éÍÑ…Ñ”¹Ù¥•İ•ÉMÁ…•ô¤ìõ…Ñ¡ìÍÑ…Ñ”¹¡¥ÑM½ÕÉ”õ¹Õ±°ìõõ•±Í”ÍÑ…Ñ”¹¡¥ÑM½ÕÉ”õ¹Õ±°ì(€€€€€Í•ÍÍ¥½¸¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰Í•±•ÑÍÑ…ÉĞˆ±½¹M•±•ÑMÑ…ÉĞ¤íÍ•ÍÍ¥½¸¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰Í•±•Ñ•¹ˆ±½¹M•±•Ñ¹¤íÍ•ÍÍ¥½¸¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰Í•±•Ğˆ±½¹M•±•Ğ¤íÍ•ÍÍ¥½¸¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰•¹ˆ±½¹¹¤ì(€€€€€ÍÑ…ÑÕÌ¡ÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆü‰1…‰½É…ÓÍÉ¥¼YH¥¹Ñ•É…Ñ¥Ù¼¥¹¥¥…‘¼ˆè‰I¥¹¥¥…‘„ˆ±ÍÑ…Ñ”¹‘•Ù¥”ôôô‰µ½‰¥±”ˆü‰Á½¹Ñ”Á…É„„µ•Í„”Ñ½ÅÕ”¹„Ñ•±„Á…É„Á½Í¥¥½¹…È¼M@ÌÈ¸ˆéÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆü‰A¥»„Í•±•¥½¹„°µ½Ù””Í½±Ñ„¸Õ…ÌÁ¥»…Ì…µÁ±¥…´°É•‘Õé•´”¥É…´¸A%9<M@…‰É”…Ì½¹•ãÕ•Ì¸ˆ(€€€€€€€€è‰=±¡”Á…É„„‰…¹…‘„”™‡„Õµ„Á¥»„½±¥ÅÕ”Á…É„Á½Í¥¥½¹…È¼M@ÌÈ¸ˆ°‰½¬ˆ¤ìÕÁ‘…Ñ•	ÕÑÑ½¹Ì ¤ìÍÑ…Ñ”¹áÉI•¹‘•É•È¹Í•Ñ¹¥µ…Ñ¥½¹1½½À¡É•¹‘•ÉÉ…µ”¤ì(€€€€€É•ÑÕÉ¸ÑÉÕ”ì(€€€õ…Ñ ¡•ÉÉ½È¥ì(€€€€€½¹Í½±”¹•ÉÉ½È¡•ÉÉ½È¤ì(€€€€€ÍÑ…Ñ”¹¡•­•õÑÉÕ”ìÍÑ…Ñ”¹ÍÕÁÁ½ÉÑ•õ™…±Í”ì(€€€€€½¹ÍĞ‘•¹¥•õ•ÉÉ½Èü¹¹…µ”ôôô‰9½Ñ±±½İ•‘ÉÉ½Èˆì(€€€€€ÍÑ…ÑÕÌ¡‘•¹¥•ü‰A•Éµ¥ÍÏ¼¹••ÍÏ…É¥„ˆè‰;¼™½¤Á½ÍÏµÙ•°¥¹¥¥…È¼]•‰aHˆ±‘•¹¥•ü¡ÍÑ…Ñ”¹‘•Ù¥”ôôô‰µ½‰¥±”ˆü‰ÕÑ½É¥é”„‰µ•É„½I¹¼¹…Ù•…‘½È”Ñ•¹Ñ”¹½Ù…µ•¹Ñ”¸ˆè‰ÕÑ½É¥é”¼]•‰aH¹¼¹…Ù•…‘½È‘¼ƒÍÕ±½Ì”Ñ•¹Ñ”¹½Ù…µ•¹Ñ”¸ˆ¤è¡•ÉÉ½Èü¹µ•ÍÍ…•ñğ‰<¹…Ù•…‘½ÈÉ•ÕÍ½Ô„Í•ÍÏ¼]•‰aH¸ˆ¤°‰İ…É¸ˆ¤ì(€€€€€ÑÉåí…İ…¥ĞÍÑ…Ñ”¹Í•ÍÍ¥½¸ü¹•¹ ¤íõ…Ñ¡íô(€€€€€±•…¹ÕÀ ¤ìÉ•ÑÕÉ¸™…±Í”ì(€€€ô(€ô(€…Íå¹Œ™Õ¹Ñ¥½¸•á¥ÑH ¥ìÑÉåì…İ…¥ĞÍÑ…Ñ”¹Í•ÍÍ¥½¸ü¹•¹ ¤ìõ…Ñ¡íôô(€™Õ¹Ñ¥½¸±•…¹ÕÀ ¥ìÍÑ…Ñ”¹¡¥ÑM½ÕÉ”ü¹…¹•°ü¸ ¤ìÍÑ…Ñ”¹¡¥ÑM½ÕÉ”õ¹Õ±°íÍÑ…Ñ”¹É…‰‰•õ¹Õ±°íÍÑ…Ñ”¹Ñİ½!…¹‘QÉ…¹Í™½É´õ¹Õ±°íÍÑ…Ñ”¹¡…¹‘M…µÁ±•Ì¹±•…È ¤íÍÑ…Ñ”¹¡…¹‘½¹ÑÉ½±±•Èü¹É•Í•Ğü¸ ¤íÍÑ…Ñ”¹¡…¹‘½¹ÑÉ½±±•Èõ¹Õ±°íÍÑ…Ñ”¹áÉQ½Õ¡MÑ…Ñ•Ì¹±•…È ¤íÍÑ…Ñ”¹áÉÑ¥½¹Q¥µ•Ì¹±•…È ¤íÍÑ…Ñ”¹İ¥É¥¹5½‘”õ™…±Í”íÍÑ…Ñ”¹Á•¹‘¥¹Q•Éµ¥¹…°õ¹Õ±°íÍÑ…Ñ”¹‰½…É‘1½­•õ™…±Í”íÍÑ…Ñ”¹ÙÉA¥¹A…¹•±=Á•¸õ™…±Í”íÍÑ…Ñ”¹ÙÉAÉ½É…µ=Á•¸õ™…±Í”íÍÑ…Ñ”¹ÙÉ-•å‰½…É‘=Á•¸õ™…±Í”íÍÑ…Ñ”¹ÙÉMåÍÑ•µ%¹ÁÕĞü¹É•µ½Ù” ¤íÍÑ…Ñ”¹ÙÉMåÍÑ•µ%¹ÁÕĞõ¹Õ±°íÍÑ…Ñ”¹ÙÉIÕ¹Ñ¥µ”ü¹ÍÑ½Àü¸ ¤íÍÑ…Ñ”¹ÙÉIÕ¹Ñ¥µ”õ¹Õ±°íÍÑ…Ñ”¹ÙÉIÕ¹¹¥¹œõ™…±Í”íÍÑ…Ñ”¹¡…É‘İ…É”õ¹Õ±°íÍÑ…Ñ”¹ÙÉ!…É‘İ…É•-•äõ¹Õ±°íÍÑ…Ñ”¹ÙÉ1¥Ñ-•äõ¹Õ±°íÍÑ…Ñ”¹±…ÍÑ]¥É•I•™É•Í ôÀìÍÑ…Ñ”¹Í•ÍÍ¥½¸õ¹Õ±°ìÍÑ…Ñ”¹É•™MÁ…”õ¹Õ±°ìÍÑ…Ñ”¹Ù¥•İ•ÉMÁ…”õ¹Õ±°ìÍÑ…Ñ”¹±…ÍÑ!¥Ğõ¹Õ±°ìÍÑ…Ñ”¹Í•±•Ñ•õ¹Õ±°ìÍÑ…Ñ”¹áÉI•¹‘•É•Èü¹Í•Ñ¹¥µ…Ñ¥½¹1½½À¡¹Õ±°¤ì¥˜¡ÍÑ…Ñ”¹áÉM•¹”¥İ¥¹‘½Ü¹½‘…MA5½‘•°ü¹‘¥ÍÁ½Í”¡ÍÑ…Ñ”¹áÉM•¹”¤íÍÑ…Ñ”¹áÉI•¹‘•É•Èü¹‘¥ÍÁ½Í” ¤íÍÑ…Ñ”¹áÉI•¹‘•É•Èõ¹Õ±°íÍÑ…Ñ”¹áÉM•¹”õ¹Õ±°íÍÑ…Ñ”¹áÉ¥ÉÕ¥Ğõ¹Õ±°íÍÑ…Ñ”¹áÉ]¥É•Ìõ¹Õ±°íÍÑ…Ñ”¹áÉQ…‰±”õ¹Õ±°íÍÑ…Ñ”¹áÉ	ÕÑÑ½¹ÌõmtíÍÑ…Ñ”¹áÉA¥¹	ÕÑÑ½¹ÌõmtíÍÑ…Ñ”¹áÉ!…¹‘Ì¹±•…È ¤íÍÑ…Ñ”¹ÙÉMÉ••¸õ¹Õ±°íÍÑ…Ñ”¹ÙÉ‘¥Ñ½ÉI½½Ğõ¹Õ±°íÍÑ…Ñ”¹ÙÉ-•å‰½…É‘I½½Ğõ¹Õ±°íÍÑ…Ñ”¹ÙÉA¥¹A…¹•°õ¹Õ±°íÍÑ…Ñ”¹ÙÉ½¬õ¹Õ±°íÍÑ…Ñ”¹ÙÉ1½­	ÕÑÑ½¸õ¹Õ±°íÍÑ…Ñ”¹…¹Ù…Ìü¹É•µ½Ù” ¤ìÍÑ…Ñ”¹…¹Ù…Ìõ¹Õ±°ìÍÑ…Ñ”¹°õ¹Õ±°ìÕÁ‘…Ñ•	ÕÑÑ½¹Ì ¤ìô(€™Õ¹Ñ¥½¸½¹¹ ¥ì±•…¹ÕÀ ¤ìÍ•ÑMÑ…ÑÕÌ ‰M•ÍÏ¼•¹•ÉÉ…‘„ˆ°‰Y½¨Á½‘”•¹ÑÉ…È¹½Ù…µ•¹Ñ”ÅÕ…¹‘¼ÅÕ¥Í•È¸ˆ±ÍÑ…Ñ”¹ÍÕÁÁ½ÉÑ•ü‰½¬ˆè‰İ…É¸ˆ¤ìô((€™Õ¹Ñ¥½¸±…µÁ5½‰¥±”¡Ù…±Õ”±µ¥¸±µ…à¥íÉ•ÑÕÉ¸5…Ñ ¹µ…à¡µ¥¸±5…Ñ ¹µ¥¸¡µ…à±Ù…±Õ”¤¤íô(€™Õ¹Ñ¥½¸Íå¹5½‰¥±•1½¬ ¥ì(€€€½¹ÍĞ´õÍÑ…Ñ”¹µ½‰¥±”±‰ÕÑÑ½¸ô ˆµ½‰¥±•I1½¬ˆ¤±¡•±Àô ˆµ½‰¥±•IY¥•İ!•±Àˆ¤±¡¥¹Ğô ˆµ½‰¥±•I=Ù•É±…å!¥¹Ğˆ¤ì(€€€¥˜¡‰ÕÑÑ½¸¥í‰ÕÑÑ½¸¹‘¥Í…‰±•ô…´¹Á±…•í‰ÕÑÑ½¸¹Í•ÑÑÑÉ¥‰ÕÑ” ‰…É¥„µÁÉ•ÍÍ•ˆ±MÑÉ¥¹œ¡´¹±½­•¤¤í‰ÕÑÑ½¸¹Ñ•áÑ½¹Ñ•¹Ğõ´¹±½­•ü‹Â~RHA½Í§Ÿ¼™¥á„ˆè‹Â~RL¥á…ÈÁ½Í§Ÿ¼ˆí‰ÕÑÑ½¸¹±…ÍÍ1¥ÍĞ¹Ñ½±” ‰¥Ìµ±½­•ˆ±´¹±½­•¤íô(€€€¥˜¡¡•±À¥¡•±À¹Ñ•áÑ½¹Ñ•¹Ğô…´¹Á±…•ü‰Q½ÅÕ”¹„¥µ…•´‘„µ•Í„Á…É„Á½Í¥¥½¹…È¼M@ÌÈ¸ˆé´¹±½­•ü‰A±…„™¥á„¹•ÍÑ„¥µ…•´¸ÉÉ…ÍÑ”1Ì”½µÁ½¹•¹Ñ•Ì‘¥É•Ñ…µ•¹Ñ”¹¼µ½‘•±¼€ÍìÕÍ”½¹•ãÕ•ÌÁ…É„±¥…È™¥½Ì¸ˆè‰ÉÉ…ÍÑ”„Á±…„Á…É„¼±½…°‘•Í•©…‘¼”Ñ½ÅÕ”•´¥á…ÈÁ½Í§Ÿ¼¸½µÁ½¹•¹Ñ•ÌÑ…µ‹¥´Á½‘•´Í•È…ÉÉ…ÍÑ…‘½Ì¹¼€Í¸ˆì(€€€¥˜¡¡¥¹Ğ¥¡¥¹Ğ¹Ñ•áÑ½¹Ñ•¹Ğô…´¹Á±…•ü‰Q½ÅÕ”¹„¥µ…•´Á…É„½±½…È¼M@ÌÈˆé´¹±½­•ü‰A½Í§Ÿ¼™¥á„¹„Ñ•±„ƒŠˆÁ±…„”½µÁ½¹•¹Ñ•ÌÙ¥ÉÑÕ…¥Ìˆè‰ÉÉ…ÍÑ”Á…É„µ½Ù•ÈƒŠˆ™¥á”ÅÕ…¹‘¼Ñ•Éµ¥¹…Èˆì(€ô(€™Õ¹Ñ¥½¸ÕÁ‘…Ñ•5½‰¥±•	½…É ¥ì(€€€½¹ÍĞ‰½…Éô ˆµ½‰¥±•I…¹Ù…Ìˆ¤ì¥˜ …‰½…É¤É•ÑÕÉ¸ì(€€€½¹ÍĞ´õÍÑ…Ñ”¹µ½‰¥±”ì(€€€‰½…É¹ÍÑå±”¹±•™Ğõ€‘í´¹áô•€ì‰½…É¹ÍÑå±”¹Ñ½Àõ€‘í´¹åô•€ì(€€€‰½…É¹ÍÑå±”¹ÑÉ…¹Í™½É´õÑÉ…¹Í±…Ñ” ´ÔÀ”°´ÔÀ”¤Í…±” ‘í´¹Í…±•ô¥€ì(€€€´¹É•¹‘•É•Èü¹Í•ÑY¥•Üü¸¡íÁ¥Ñ èÔØ±å…Üé´¹É½Ñ…Ñ¥½¸±Í…±”èÅô¤ì(€€€Íå¹5½‰¥±•1½¬ ¤ì(€ô((€™Õ¹Ñ¥½¸É•Í•Ñ5½‰¥±•	½…É ¥ì(€€€=‰©•Ğ¹…ÍÍ¥¸¡ÍÑ…Ñ”¹µ½‰¥±”±íÁ±…•é™…±Í”±±½­•é™…±Í”±àèÔÀ±äèÔà±Í…±”èÄ±É½Ñ…Ñ¥½¸èÀ±‘É…¥¹œé™…±Í”±Á¥¹¡¥ÍÑ…¹”èÁô¤ì(€€€½¹ÍĞ‰½…Éô ˆµ½‰¥±•I…¹Ù…Ìˆ¤°É•Ñ¥±”ô ˆµ½‰¥±•II•Ñ¥±”ˆ¤°¡¥¹Ğô ˆµ½‰¥±•I=Ù•É±…å!¥¹Ğˆ¤ì(€€€¥˜¡‰½…É¤‰½…É¹¡¥‘‘•¸õÑÉÕ”ì(€€€¥˜¡É•Ñ¥±”¤É•Ñ¥±”¹¡¥‘‘•¸õ™…±Í”ì(€€€¥˜¡¡¥¹Ğ¤¡¥¹Ğ¹Ñ•áÑ½¹Ñ•¹Ğô‰Q½ÅÕ”¹„µ•Í„Á…É„½±½…È¼M@ÌÈˆì(€€€ÕÁ‘…Ñ•5½‰¥±•	½…É ¤ì(€ô((€™Õ¹Ñ¥½¸µ½‰¥±•A½¥¹Ğ¡•Ù•¹Ğ¥ì(€€€½¹ÍĞĞõ•Ù•¹Ğ¹Ñ½Õ¡•Ìü¹lÁuññ•Ù•¹Ğ¹¡…¹•‘Q½Õ¡•Ìü¹lÁuññ•Ù•¹Ğì(€€€½¹ÍĞÍÑ…”ô ˆµ½‰¥±•IMÑ…”ˆ¤°ÈõÍÑ…”ü¹•Ñ	½Õ¹‘¥¹±¥•¹ÑI•Ğ ¤ì(€€€¥˜ …È¤É•ÑÕÉ¸¹Õ±°ì(€€€É•ÑÕÉ¸íàé5…Ñ ¹µ…à À±5…Ñ ¹µ¥¸ ÄÀÀ°¡Ğ¹±¥•¹Ñ`µÈ¹±•™Ğ¤½È¹İ¥‘Ñ ¨ÄÀÀ¤¤±äé5…Ñ ¹µ…à À±5…Ñ ¹µ¥¸ ÄÀÀ°¡Ğ¹±¥•¹ÑdµÈ¹Ñ½À¤½È¹¡•¥¡Ğ¨ÄÀÀ¤¤±±¥•¹Ñ`éĞ¹±¥•¹Ñ`±±¥•¹ÑdéĞ¹±¥•¹Ñeôì(€ô((€™Õ¹Ñ¥½¸Á±…•5½‰¥±•…±±‰…¬¡•Ù•¹Ğ¥ì(€€€½¹ÍĞÀõµ½‰¥±•A½¥¹Ğ¡•Ù•¹Ğ¤ì¥˜ …À¤É•ÑÕÉ¸ì(€€€½¹ÍĞ´õÍÑ…Ñ”¹µ½‰¥±”°‰½…Éô ˆµ½‰¥±•I…¹Ù…Ìˆ¤°É•Ñ¥±”ô ˆµ½‰¥±•II•Ñ¥±”ˆ¤°¡¥¹Ğô ˆµ½‰¥±•I=Ù•É±…å!¥¹Ğˆ¤ì(€€€¥˜ …´¹Á±…•¥ì(€€€€€´¹Á±…•õÑÉÕ”ì´¹àõÀ¹àì´¹äõÀ¹äì(€€€€€¥˜¡‰½…É¤‰½…É¹¡¥‘‘•¸õ™…±Í”ì¥˜¡É•Ñ¥±”¤É•Ñ¥±”¹¡¥‘‘•¸õÑÉÕ”ì(€€€€€Íå¹5½‰¥±•1½¬ ¤ì(€€€€€ÕÁ‘…Ñ•5½‰¥±•	½…É ¤ì(€€€ô(€ô((€™Õ¹Ñ¥½¸Ñ½Õ¡¥ÍÑ…¹”¡•Ù•¹Ğ¥ì(€€€¥˜ …•Ù•¹Ğ¹Ñ½Õ¡•Ìñğ•Ù•¹Ğ¹Ñ½Õ¡•Ì¹±•¹Ñ ğÈ¥É•ÑÕÉ¸€Àì(€€€É•ÑÕÉ¸5…Ñ ¹¡åÁ½Ğ¡•Ù•¹Ğ¹Ñ½Õ¡•ÍlÁt¹±¥•¹Ñ`µ•Ù•¹Ğ¹Ñ½Õ¡•ÍlÅt¹±¥•¹Ñ`±•Ù•¹Ğ¹Ñ½Õ¡•ÍlÁt¹±¥•¹Ñdµ•Ù•¹Ğ¹Ñ½Õ¡•ÍlÅt¹±¥•¹Ñd¤ì(€ô(€™Õ¹Ñ¥½¸ÍÑ…ÉÑ5½‰¥±•É…œ¡•Ù•¹Ğ¥ì(€€€½¹ÍĞ´õÍÑ…Ñ”¹µ½‰¥±”ì(€€€¥˜ …´¹Á±…•¥É•ÑÕÉ¸ì(€€€¥˜¡•Ù•¹Ğ¹Ñ½Õ¡•Ìü¹±•¹Ñ øôÈ¥í´¹‘É…¥¹œõ™…±Í”í´¹Á¥¹¡¥ÍÑ…¹”õÑ½Õ¡¥ÍÑ…¹”¡•Ù•¹Ğ¤íÉ•ÑÕÉ¸íô(€€€¥˜¡´¹±½­•ñğ´¹É•¹‘•É•Èü¹Á¥­½µÁ½¹•¹ÑĞü¸¡•Ù•¹Ğ¤¥É•ÑÕÉ¸ì(€€€•Ù•¹Ğ¹ÁÉ•Ù•¹Ñ•™…Õ±Ğ ¤ì(€€€½¹ÍĞÀõµ½‰¥±•A½¥¹Ğ¡•Ù•¹Ğ¤ì¥˜ …À¥É•ÑÕÉ¸ì(€€€´¹‘É…¥¹œõÑÉÕ”ì(€€€´¹‘É…àõÀ¹àµ´¹àí´¹‘É…äõÀ¹äµ´¹äì(€ô(€™Õ¹Ñ¥½¸µ½Ù•5½‰¥±•É…œ¡•Ù•¹Ğ¥ì(€€€½¹ÍĞ´õÍÑ…Ñ”¹µ½‰¥±”ì(€€€¥˜¡•Ù•¹Ğ¹Ñ½Õ¡•Ìü¹±•¹Ñ øôÈ¥ì(€€€€€½¹ÍĞ‘¥ÍĞõÑ½Õ¡¥ÍÑ…¹”¡•Ù•¹Ğ¤ì(€€€€€¥˜¡´¹Á¥¹¡¥ÍÑ…¹”˜™‘¥ÍĞ¥í•Ù•¹Ğ¹ÁÉ•Ù•¹Ñ•™…Õ±Ğ ¤í´¹Í…±”õ±…µÁ5½‰¥±”¡´¹Í…±”©‘¥ÍĞ½´¹Á¥¹¡¥ÍÑ…¹”°¸ÔÔ°È¸È¤í´¹Á¥¹¡¥ÍÑ…¹”õ‘¥ÍĞíÕÁ‘…Ñ•5½‰¥±•	½…É ¤íô(€€€€€´¹‘É…¥¹œõ™…±Í”íÉ•ÑÕÉ¸ì(€€€ô(€€€¥˜ …´¹‘É…¥¹ññ´¹±½­•¥É•ÑÕÉ¸ì(€€€•Ù•¹Ğ¹ÁÉ•Ù•¹Ñ•™…Õ±Ğ ¤ì(€€€½¹ÍĞÀõµ½‰¥±•A½¥¹Ğ¡•Ù•¹Ğ¤í¥˜ …À¥É•ÑÕÉ¸ì(€€€´¹àõ±…µÁ5½‰¥±”¡À¹àµ´¹‘É…à°ÄÈ°àà¤í´¹äõ±…µÁ5½‰¥±”¡À¹äµ´¹‘É…ä°ÄØ°àÔ¤íÕÁ‘…Ñ•5½‰¥±•	½…É ¤ì(€ô(€™Õ¹Ñ¥½¸ÍÑ½Á5½‰¥±•É…œ ¥íÍÑ…Ñ”¹µ½‰¥±”¹‘É…¥¹œõ™…±Í”íÍÑ…Ñ”¹µ½‰¥±”¹Á¥¹¡¥ÍÑ…¹”ôÀíô((€…Íå¹Œ™Õ¹Ñ¥½¸½Á•¹…µ•É……±±‰…¬ ¥ì(€€€€¼¼;¼¥¹¥¥„Õµ„Í•Õ¹‘„‰µ•É„Í”¼ÕÍ×…É¥¼Ñ½…È‘Õ…ÌÙ•é•Ì¸(€€€¥˜¡ÍÑ…Ñ”¹µ½‰¥±”¹™…±±‰…¬€˜˜ÍÑ…Ñ”¹µ½‰¥±”¹ÍÑÉ•…´ü¹…Ñ¥Ù”¤É•ÑÕÉ¸ÑÉÕ”ì(€€€¥˜¡ÍÑ…Ñ”¹µ½‰¥±”¹½Á•¹¥¹œ¤É•ÑÕÉ¸™…±Í”ì(€€€¥˜ …İ¥¹‘½Ü¹¥ÍM•ÕÉ•½¹Ñ•áĞ¥ì(€€€€€Í•Ñ5½‰¥±•MÑ…ÑÕÌ ‰!QQAL¹••ÍÏ…É¥¼ˆ°‰‰É„¼=Á•±¼•¹‘•É—¼!QQAL‘¼Í¥Ñ”Á…É„Á•Éµ¥Ñ¥È¼ÕÍ¼‘„‰µ•É„¸ˆ°‰İ…É¸ˆ¤ì(€€€€€É•ÑÕÉ¸™…±Í”ì(€€€ô(€€€¥˜ …¹…Ù¥…Ñ½È¹µ•‘¥…•Ù¥•Ìü¹•ÑUÍ•É5•‘¥„¥ì(€€€€€Í•Ñ5½‰¥±•MÑ…ÑÕÌ ‰‰µ•É„¥¹‘¥ÍÁ½»µÙ•°ˆ°‰‰É„¹¼¡É½µ”€¡¹‘É½¥¤½ÔM…™…É¤€¡¥A¡½¹”¤°Á•±¼±¥¹¬!QQAL°”Á•Éµ¥Ñ„„‰µ•É„¹…Ì½¹™¥ÕÉ‡ŸÕ•Ì‘¼Í¥Ñ”¸ˆ°‰İ…É¸ˆ¤ì(€€€€€É•ÑÕÉ¸™…±Í”ì(€€€ô(€€€½¹ÍĞ‰ÕÑÑ½¸ô ˆ½Á•¹5½‰¥±•Hˆ¤ì(€€€ÍÑ…Ñ”¹µ½‰¥±”¹½Á•¹¥¹œõÑÉÕ”ì(€€€¥˜¡‰ÕÑÑ½¸¤‰ÕÑÑ½¸¹‘¥Í…‰±•õÑÉÕ”ì(€€€Í•Ñ5½‰¥±•MÑ…ÑÕÌ ‰M½±¥¥Ñ…¹‘¼„‰µ•É„ˆ°‰ÕÑ½É¥é”„‰µ•É„ÑÉ…Í•¥É„ÅÕ…¹‘¼¼¹…Ù•…‘½ÈÁ•ÉÕ¹Ñ…È¸ˆ¤ì(€€€±•ĞÍÑÉ•…´õ¹Õ±°ì(€€€ÑÉåì(€€€€€€¼¼I•Í½±×Ÿ¼µ½‘•É…‘„µ…¹Ó¥´„‰µ•É„É•ÍÁ½¹Í¥Ù„•´…Á…É•±¡½Ìµ…¥ÌÍ¥µÁ±•Ì¸(€€€€€ÑÉåì(€€€€€€€ÍÑÉ•…´õ…İ…¥Ğ¹…Ù¥…Ñ½È¹µ•‘¥…•Ù¥•Ì¹•ÑUÍ•É5•‘¥„¡ì(€€€€€€€€€Ù¥‘•¼éí™…¥¹5½‘”éí¥‘•…°è‰•¹Ù¥É½¹µ•¹Ğ‰ô±İ¥‘Ñ éí¥‘•…°èäØÁô±¡•¥¡Ğéí¥‘•…°èÜÈÁô±™É…µ•I…Ñ”éí¥‘•…°èÈĞ±µ…àèÌÁõô±…Õ‘¥¼é™…±Í”(€€€€€€€ô¤ì(€€€€€õ…Ñ ¡•ÉÉ½È¥ì(€€€€€€€¥˜¡•ÉÉ½Èü¹¹…µ”„ôô‰=Ù•É½¹ÍÑÉ…¥¹•‘ÉÉ½Èˆ€˜˜•ÉÉ½Èü¹¹…µ”„ôô‰9½Ñ½Õ¹‘ÉÉ½Èˆ¤Ñ¡É½Ü•ÉÉ½Èì(€€€€€€€€¼¼±Õ¹Ì¹…Ù•…‘½É•Ì»¼É•½¹¡••´½Ì±¥µ¥Ñ•Ì‘”É•Í½±×Ÿ¼½Ô™…¥¹5½‘”¸(€€€€€€€ÍÑÉ•…´õ…İ…¥Ğ¹…Ù¥…Ñ½È¹µ•‘¥…•Ù¥•Ì¹•ÑUÍ•É5•‘¥„¡íÙ¥‘•¼éÑÉÕ”±…Õ‘¥¼é™…±Í•ô¤ì(€€€€€ô(€€€€€½¹ÍĞ½Ù•É±…äô ˆµ½‰¥±•I=Ù•É±…äˆ¤°Ù¥‘•¼ô ˆµ½‰¥±•IY¥‘•¼ˆ¤°…¹Ù…Ìô ˆµ½‰¥±•I…¹Ù…Ìˆ¤ì(€€€€€¥˜ …½Ù•É±…äñğ€…Ù¥‘•¼¤Ñ¡É½Ü¹•ÜÉÉ½È ‰¥¹Ñ•É™…”‘„‰µ•É„»¼™½¤•¹½¹ÑÉ…‘„¸ÑÕ…±¥é”„Ã…¥¹„”Ñ•¹Ñ”¹½Ù…µ•¹Ñ”¸ˆ¤ì(€€€€€Ù¥‘•¼¹µÕÑ•õÑÉÕ”ì(€€€€€Ù¥‘•¼¹…ÕÑ½Á±…äõÑÉÕ”ì(€€€€€Ù¥‘•¼¹Á±…åÍ%¹±¥¹”õÑÉÕ”ì(€€€€€Ù¥‘•¼¹Í•ÑÑÑÉ¥‰ÕÑ” ‰Á±…åÍ¥¹±¥¹”ˆ°ˆˆ¤ì(€€€€€Ù¥‘•¼¹ÍÉ=‰©•ĞõÍÑÉ•…´ì(€€€€€½Ù•É±…ä¹¡¥‘‘•¸õ™…±Í”ì(€€€€€½Ù•É±…ä¹Í•ÑÑÑÉ¥‰ÕÑ” ‰…É¥„µ¡¥‘‘•¸ˆ°‰™…±Í”ˆ¤ì(€€€€€‘½Õµ•¹Ğ¹‘½Õµ•¹Ñ±•µ•¹Ğ¹±…ÍÍ1¥ÍĞ¹…‘ ‰µ½‰¥±”µ…Èµ½Á•¸ˆ¤ì(€€€€€€¼¼;¼½Õ±Ñ…È™…±¡„‘”É•ÁÉ½‘×Ÿ¼èÍ•´Á±…ä ¤„‰µ•É„Á…É•”Õµ„Ñ•±„ÁÉ•Ñ„¸(€€€€€…İ…¥ĞÙ¥‘•¼¹Á±…ä ¤ì(€€€€€¥˜ …Ù¥‘•¼¹Ù¥‘•½]¥‘Ñ ¥ì(€€€€€€€…İ…¥Ğ¹•ÜAÉ½µ¥Í” ¡É•Í½±Ù”±É•©•Ğ¤ôùì(€€€€€€€€€½¹ÍĞÑ¥µ•½ÕĞõÍ•ÑQ¥µ•½ÕĞ  ¤ôùì±•…¹ÕÀ ¤ìÉ•©•Ğ¡¹•ÜÉÉ½È ‰‰µ•É„…‰É¥Ô°µ…Ì»¼•¹Ù¥½Ô¥µ…•´¸•¡”½ÕÑÉ½Ì…Á±¥…Ñ¥Ù½ÌÅÕ”•ÍÑ•©…´ÕÍ…¹‘¼„‰µ•É„”Ñ•¹Ñ”¹½Ù…µ•¹Ñ”¸ˆ¤¤ìô°ÔÔÀÀ¤ì(€€€€€€€€€½¹ÍĞ±•…¹ÕÀô ¤ôùì±•…ÉQ¥µ•½ÕĞ¡Ñ¥µ•½ÕĞ¤ìÙ¥‘•¼¹É•µ½Ù•Ù•¹Ñ1¥ÍÑ•¹•È ‰±½…‘•‘µ•Ñ…‘…Ñ„ˆ±½¹I•…‘ä¤ìôì(€€€€€€€€€½¹ÍĞ½¹I•…‘äô ¤ôùì±•…¹ÕÀ ¤ìÉ•Í½±Ù” ¤ìôì(€€€€€€€€€Ù¥‘•¼¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±½…‘•‘µ•Ñ…‘…Ñ„ˆ±½¹I•…‘ä±í½¹”éÑÉÕ•ô¤ì(€€€€€€€€€¥˜¡Ù¥‘•¼¹Ù¥‘•½]¥‘Ñ ¤½¹I•…‘ä ¤ì(€€€€€€€ô¤ì(€€€€€ô(€€€€€ÍÑ…Ñ”¹µ½‰¥±”¹ÍÑÉ•…´õÍÑÉ•…´ì(€€€€€ÍÑ…Ñ”¹µ½‰¥±”¹™…±±‰…¬õÑÉÕ”ì(€€€€€¥˜¡…¹Ù…Ì¥ì(€€€€€€€ÍÑ…Ñ”¹µ½‰¥±”¹É•¹‘•É•Èü¹‘•ÍÑÉ½äü¸ ¤ì(€€€€€€€ÍÑ…Ñ”¹µ½‰¥±”¹É•¹‘•É•Èõİ¥¹‘½Ü¹½‘…M@Íü¹É•…Ñ•=Ù•É±…äü¸¡…¹Ù…Ì±ì(€€€€€€€€€½¹½µÁ½¹•¹Ñ5½Ù”¡¥±à±è±‘½¹”¥íİ¥¹‘½Ü¹‘¥ÍÁ…Ñ¡Ù•¹Ğ¡¹•ÜÕÍÑ½µÙ•¹Ğ ‰½‘„µ…Èµ½µÁ½¹•¹Ğµµ½Ù”ˆ±í‘•Ñ…¥°éí¥±à±è±‘½¹•õô¤¤íô(€€€€€€€ô¥ññ¹Õ±°ì(€€€€€€€ÍÑ…Ñ”¹µ½‰¥±”¹É•¹‘•É•Èü¹Í•ÑAÉ½©•Ğü¸ ‰‰±¥¹¬ˆ¤ì(€€€€€ô(€€€€€É•Í•Ñ5½‰¥±•	½…É ¤ì(€€€€€İ¥¹‘½Ü¹‘¥ÍÁ…Ñ¡Ù•¹Ğ¡¹•ÜÕÍÑ½µÙ•¹Ğ ‰½‘„µµ½‰¥±”µ…Èµ½Á•¸ˆ¤¤ì(€€€€€Í•Ñ5½‰¥±•MÑ…ÑÕÌ ‰‰µ•É„™Õ¹¥½¹…¹‘¼ˆ°‰5½‘¼Í½‰É•Á½Í§Ÿ¼‘¥ÍÁ½»µÙ•°èÑ½ÅÕ”¹„¥µ…•´°Á½Í¥¥½¹””™¥á”„Á±…„¸Á½Í§Ÿ¼»¼…½µÁ…¹¡„„µ•Í„Í”Ù½¨µ½Ù•È¼•±Õ±…È¸ˆ°‰½¬ˆ¤ì(€€€€€É•ÑÕÉ¸ÑÉÕ”ì(€€€õ…Ñ ¡•ÉÉ½È¥ì(€€€€€ÍÑÉ•…´ü¹•ÑQÉ…­Ìü¸ ¤¹™½É… ¡ÑÉ…¬ôùÑÉ…¬¹ÍÑ½À ¤¤ì(€€€€€ÍÑ…Ñ”¹µ½‰¥±”¹ÍÑÉ•…´õ¹Õ±°ì(€€€€€ÍÑ…Ñ”¹µ½‰¥±”¹™…±±‰…¬õ™…±Í”ì(€€€€€½¹ÍĞÙ¥‘•¼ô ˆµ½‰¥±•IY¥‘•¼ˆ¤±½Ù•É±…äô ˆµ½‰¥±•I=Ù•É±…äˆ¤ì(€€€€€¥˜¡Ù¥‘•¼¥ìÙ¥‘•¼¹Á…ÕÍ” ¤ìÙ¥‘•¼¹ÍÉ=‰©•Ğõ¹Õ±°ìô(€€€€€¥˜¡½Ù•É±…ä¥ì½Ù•É±…ä¹¡¥‘‘•¸õÑÉÕ”ì½Ù•É±…ä¹Í•ÑÑÑÉ¥‰ÕÑ” ‰…É¥„µ¡¥‘‘•¸ˆ°‰ÑÉÕ”ˆ¤ìô(€€€€€‘½Õµ•¹Ğ¹‘½Õµ•¹Ñ±•µ•¹Ğ¹±…ÍÍ1¥ÍĞ¹É•µ½Ù” ‰µ½‰¥±”µ…Èµ½Á•¸ˆ¤ì(€€€€€½¹ÍĞ‘•¹¥•õ•ÉÉ½Èü¹¹…µ”ôôô‰9½Ñ±±½İ•‘ÉÉ½È‰ññ•ÉÉ½Èü¹¹…µ”ôôô‰M•ÕÉ¥ÑåÉÉ½È‰ññ•ÉÉ½Èü¹¹…µ”ôôô‰A•Éµ¥ÍÍ¥½¹•¹¥•‘ÉÉ½Èˆì(€€€€€½¹ÍĞ‰ÕÍäõ•ÉÉ½Èü¹¹…µ”ôôô‰9½ÑI•…‘…‰±•ÉÉ½È‰ññ•ÉÉ½Èü¹¹…µ”ôôô‰QÉ…­MÑ…ÉÑÉÉ½Èˆì(€€€€€Í•Ñ5½‰¥±•MÑ…ÑÕÌ¡‘•¹¥•ü‰•ÍÍ¼ƒ€‰µ•É„‰±½ÅÕ•…‘¼ˆé‰ÕÍäü‰‰µ•É„•´ÕÍ¼ˆè‰;¼™½¤Á½ÍÏµÙ•°•á¥‰¥È„‰µ•É„ˆ°(€€€€€€€‘•¹¥•ü‰9¼¹…Ù•…‘½È°Ñ½ÅÕ”¹¼…‘•…‘¼¿µ½¹”‘¼Í¥Ñ””Á•Éµ¥Ñ„‰µ•É„¸•Á½¥ÌÑ•¹Ñ”¹½Ù…µ•¹Ñ”¸ˆè(€€€€€€€‰ÕÍäü‰•¡”½ÕÑÉ½Ì…Á±¥…Ñ¥Ù½ÌÅÕ”ÕÍ…´„‰µ•É„”Ñ•¹Ñ”‘”¹½Ù¼¸ˆè(€€€€€€€€¡•ÉÉ½Èü¹µ•ÍÍ…•ñğ‰½¹™¥É„„Á•Éµ¥ÍÏ¼‘„‰µ•É„”Ñ•¹Ñ”¹½Ù…µ•¹Ñ”¸ˆ¤°‰İ…É¸ˆ¤ì(€€€€€½¹Í½±”¹İ…É¸ ‰=Iµ½‰¥±”èˆ±•ÉÉ½È¤ì(€€€€€É•ÑÕÉ¸™…±Í”ì(€€€õ™¥¹…±±åì(€€€€€ÍÑ…Ñ”¹µ½‰¥±”¹½Á•¹¥¹œõ™…±Í”ì(€€€€€¥˜¡‰ÕÑÑ½¸¤‰ÕÑÑ½¸¹‘¥Í…‰±•õ™…±Í”ì(€€€ô(€ô((€™Õ¹Ñ¥½¸±½Í•5½‰¥±•H ¥ì(€€€İ¥¹‘½Ü¹‘¥ÍÁ…Ñ¡Ù•¹Ğ¡¹•ÜÕÍÑ½µÙ•¹Ğ ‰½‘„µµ½‰¥±”µ…Èµ±½Í”ˆ¤¤ì(€€€¥˜¡ÍÑ…Ñ”¹Í•ÍÍ¥½¸€˜˜ÍÑ…Ñ”¹‘•Ù¥”ôôô‰µ½‰¥±”ˆ¥ìÍÑ…Ñ”¹Í•ÍÍ¥½¸¹•¹ ¤¹…Ñ   ¤ôùíô¤ìô(€€€ÍÑ…Ñ”¹µ½‰¥±”¹ÍÑÉ•…´ü¹•ÑQÉ…­Ìü¸ ¤¹™½É… ¡ÑÉ…¬ôùÑÉ…¬¹ÍÑ½À ¤¤ì(€€€ÍÑ…Ñ”¹µ½‰¥±”¹ÍÑÉ•…´õ¹Õ±°ìÍÑ…Ñ”¹µ½‰¥±”¹™…±±‰…¬õ™…±Í”ì(€€€ÍÑ…Ñ”¹µ½‰¥±”¹É•¹‘•É•Èü¹‘•ÍÑÉ½äü¸ ¤ìÍÑ…Ñ”¹µ½‰¥±”¹É•¹‘•É•Èõ¹Õ±°ì(€€€½¹ÍĞÙ¥‘•¼ô ˆµ½‰¥±•IY¥‘•¼ˆ¤°½Ù•É±…äô ˆµ½‰¥±•I=Ù•É±…äˆ¤ì(€€€¥˜¡Ù¥‘•¼¤Ù¥‘•¼¹ÍÉ=‰©•Ğõ¹Õ±°ì(€€€¥˜¡½Ù•É±…ä¥ì½Ù•É±…ä¹¡¥‘‘•¸õÑÉÕ”ì½Ù•É±…ä¹Í•ÑÑÑÉ¥‰ÕÑ” ‰…É¥„µ¡¥‘‘•¸ˆ°‰ÑÉÕ”ˆ¤ìô(€€€‘½Õµ•¹Ğ¹‘½Õµ•¹Ñ±•µ•¹Ğ¹±…ÍÍ1¥ÍĞ¹É•µ½Ù” ‰µ½‰¥±”µ…Èµ½Á•¸ˆ¤ì(€€€É•Í•Ñ5½‰¥±•	½…É ¤ì(€ô((€…Íå¹Œ™Õ¹Ñ¥½¸•¹Ñ•É5½‰¥±•H ¥ì(€€€€¼¼‡Ÿ¼€‰I¹¼•±Õ±…Èˆ…‰É”„‰µ•É„‘¥É•Ñ…µ•¹Ñ”¸Ù¥Ñ„ÅÕ”„Ñ•¹Ñ…Ñ¥Ù„(€€€€¼¼]•‰aH€¡™É•ÅÕ•¹Ñ•µ•¹Ñ”¥¹‘¥ÍÁ½»µÙ•°•´¥=L½¹‘É½¥¤¥µÁ—„„‰µ•É„½µÕ´¸(€€€€¼¼<‰½Ó¼€‰I½´ƒÍÕ±½Ìˆ½¹Ñ¥¹Õ„ÕÍ…¹‘¼]•‰aH¥µµ•ÉÍ¥Ù”µ…È¹½Éµ…±µ•¹Ñ”¸(€€€É•ÑÕÉ¸½Á•¹…µ•É……±±‰…¬ ¤ì(€ô((€™Õ¹Ñ¥½¸…Ñ¥Ù…Ñ•5½‰¥±” ¥ì(€€€¥˜ …İ¥¹‘½Ü¹¥ÍM•ÕÉ•½¹Ñ•áĞ¥ìÍ•Ñ5½‰¥±•MÑ…ÑÕÌ ‰!QQAL¹••ÍÏ…É¥¼ˆ°‰A…É„ÕÍ…È„‰µ•É„¹¼•±Õ±…È°…‰É„¼=Á½È!QQAL¸ˆ°‰İ…É¸ˆ¤ìÉ•ÑÕÉ¸ìô(€€€Í•Ñ5½‰¥±•MÑ…ÑÕÌ ‰‰µ•É„‘¥ÍÁ½»µÙ•°ˆ°‰Q½ÅÕ”•´ƒŠqI¹¼•±Õ±…ËŠt½ÔƒŠq‰É¥È‰µ•É„•´IŠt”…ÕÑ½É¥é”„‰µ•É„¸Á±…„€Í…Á…É•”Í½‰É”„¥µ…•´‘•Á½¥ÌÅÕ”Ù½¨Ñ½…È¹„µ•Í„¸ˆ°‰½¬ˆ¤ì(€ô((€™Õ¹Ñ¥½¸‰¥¹ ¥ì(€€€€ m‘…Ñ„µ…Èµµ½‘•tœ¤¹™½É… ¡‰Ñ¸ôù‰Ñ¸¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùì€ m‘…Ñ„µ…Èµµ½‘•tœ¤¹™½É… ¡àôùà¹±…ÍÍ1¥ÍĞ¹Ñ½±” ‰…Ñ¥Ù”ˆ±àôôõ‰Ñ¸¤¤ìÍÑ…Ñ”¹µ½‘”õ‰Ñ¸¹‘…Ñ…Í•Ğ¹…É5½‘”ì€ ˆ…É1…‰Q½½±Ìˆ¤¹¡¥‘‘•¸õÍÑ…Ñ”¹µ½‘”„ôô‰±…ˆˆìÕÁ‘…Ñ•	ÕÑÑ½¹Ì ¤ìô¤¤ì(€€€€ m‘…Ñ„µáÈµ•áÁ•É¥•¹•tœ¤¹™½É… ¡‰Ñ¸ôù‰Ñ¸¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùíÍÑ…Ñ”¹•áÁ•É¥•¹”õ‰Ñ¸¹‘…Ñ…Í•Ğ¹áÉáÁ•É¥•¹”ì m‘…Ñ„µáÈµ•áÁ•É¥•¹•tœ¤¹™½É… ¡àôùí½¹ÍĞ…Ñ¥Ù”õàôôõ‰Ñ¸íà¹±…ÍÍ1¥ÍĞ¹Ñ½±” ‰…Ñ¥Ù”ˆ±…Ñ¥Ù”¤íà¹Í•ÑÑÑÉ¥‰ÕÑ” ‰…É¥„µ¡•­•ˆ±MÑÉ¥¹œ¡…Ñ¥Ù”¤¥ô¤í¥˜¡ÍÑ…Ñ”¹•áÁ•É¥•¹”ôôô‰ÙÈˆ¥íÍÑ…Ñ”¹µ½‘”ô‰±…ˆˆì m‘…Ñ„µ…Èµµ½‘•tœ¤¹™½É… ¡àôùà¹±…ÍÍ1¥ÍĞ¹Ñ½±” ‰…Ñ¥Ù”ˆ±à¹‘…Ñ…Í•Ğ¹…É5½‘”ôôô‰±…ˆˆ¤¤ì ˆ…É1…‰Q½½±Ìˆ¤¹¡¥‘‘•¸õ™…±Í”íõÍÑ…Ñ”¹¡•­•õ™…±Í”í¡•­MÕÁÁ½ÉĞ ¤íô¤¤ì(€€€€ ˆ•¹Ñ•ÉHˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ±•¹Ñ•ÉH¤ì€ ˆ•á¥ÑHˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ±•á¥ÑH¤ì(€€€€ ˆ½Á•¹5½‰¥±•Hˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ±•¹Ñ•É5½‰¥±•H¤ì(€€€€ ˆ±½Í•5½‰¥±•Hˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ±±½Í•5½‰¥±•H¤ì(€€€€ ˆµ½‰¥±•IMÑ…”ˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ±Á±…•5½‰¥±•…±±‰…¬¤ì(€€€€ ˆµ½‰¥±•I…¹Ù…Ìˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰Á½¥¹Ñ•É‘½İ¸ˆ±ÍÑ…ÉÑ5½‰¥±•É…œ¤ì(€€€İ¥¹‘½Ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰Á½¥¹Ñ•Éµ½Ù”ˆ±µ½Ù•5½‰¥±•É…œ±íÁ…ÍÍ¥Ù”é™…±Í•ô¤ìİ¥¹‘½Ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰Á½¥¹Ñ•ÉÕÀˆ±ÍÑ½Á5½‰¥±•É…œ¤ì(€€€€ ˆµ½‰¥±•I…¹Ù…Ìˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰Ñ½Õ¡ÍÑ…ÉĞˆ±ÍÑ…ÉÑ5½‰¥±•É…œ±íÁ…ÍÍ¥Ù”é™…±Í•ô¤ì(€€€İ¥¹‘½Ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰Ñ½Õ¡µ½Ù”ˆ±µ½Ù•5½‰¥±•É…œ±íÁ…ÍÍ¥Ù”é™…±Í•ô¤ìİ¥¹‘½Ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰Ñ½Õ¡•¹ˆ±ÍÑ½Á5½‰¥±•É…œ¤ì(€€€€ ˆµ½‰¥±•IMµ…±±•Èˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùíÍÑ…Ñ”¹µ½‰¥±”¹Í…±”õ5…Ñ ¹µ…à ¸ÔÔ±ÍÑ…Ñ”¹µ½‰¥±”¹Í…±”´¸Ä¤íÕÁ‘…Ñ•5½‰¥±•	½…É ¤íô¤ì(€€€€ ˆµ½‰¥±•I1…É•Èˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùíÍÑ…Ñ”¹µ½‰¥±”¹Í…±”õ5…Ñ ¹µ¥¸ È¸È±ÍÑ…Ñ”¹µ½‰¥±”¹Í…±”¬¸Ä¤íÕÁ‘…Ñ•5½‰¥±•	½…É ¤íô¤ì(€€€€ ˆµ½‰¥±•II½Ñ…Ñ•1•™Ğˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùíÍÑ…Ñ”¹µ½‰¥±”¹É½Ñ…Ñ¥½¸´ôÄÈíÕÁ‘…Ñ•5½‰¥±•	½…É ¤íô¤ì(€€€€ ˆµ½‰¥±•II½Ñ…Ñ•I¥¡Ğˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùíÍÑ…Ñ”¹µ½‰¥±”¹É½Ñ…Ñ¥½¸¬ôÄÈíÕÁ‘…Ñ•5½‰¥±•	½…É ¤íô¤ì(€€€€ ˆµ½‰¥±•II•Í•Ğˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ±É•Í•Ñ5½‰¥±•	½…É¤ì(€€€€ ˆµ½‰¥±•I1½¬ˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùì(€€€€€¥˜ …ÍÑ…Ñ”¹µ½‰¥±”¹Á±…•¥É•ÑÕÉ¸ì(€€€€€ÍÑ…Ñ”¹µ½‰¥±”¹±½­•ô…ÍÑ…Ñ”¹µ½‰¥±”¹±½­•ì(€€€€€ÍÑ…Ñ”¹µ½‰¥±”¹‘É…¥¹œõ™…±Í”ì(€€€€€Íå¹5½‰¥±•1½¬ ¤ì(€€€€€Ñ½…ÍĞ¡ÍÑ…Ñ”¹µ½‰¥±”¹±½­•ü‰A±…„™¥á„¹•ÍÑ„¥µ…•´‘„‰µ•É„ˆè‰A±…„‘•Í‰±½ÅÕ•…‘„¸ÉÉ…ÍÑ”Á…É„µ½Ù•È¸ˆ¤ì(€€€ô¤ì(€€€Íå¹5½‰¥±•1½¬ ¤ì(€€€€ ˆ¡•­Hˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ±¡•­MÕÁÁ½ÉĞ¤ì(€€€€ ˆ…É%µÁ½ÉÑ¥ÉÕ¥Ğˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ±¥µÁ½ÉÑAÉ½Ñ½ÑåÁ”¤ì(€€€€ ˆ…É‘‘1•ˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôù…‘‘½µÁ½¹•¹Ğ ‰±•ˆ¤¤ì€ ˆ…É‘‘I•Í¥ÍÑ½Èˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôù…‘‘½µÁ½¹•¹Ğ ‰É•Í¥ÍÑ½Èˆ¤¤ì(€€€€ ˆ…É±•…É½µÁ½¹•¹ÑÌˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùíÍÑ…Ñ”¹½µÁ½¹•¹ÑÌõmtíÍÑ…Ñ”¹áÉ½¹¹•Ñ¥½¹ÌõmtíÍÑ…Ñ”¹áÉ]¥É•Í¥ÉÑäõÑÉÕ”íÍÑ…Ñ”¹Í•±•Ñ•õ¹Õ±°íÉ•¹‘•É½µÁ½¹•¹Ñ1¥ÍĞ ¤íÕÁ‘…Ñ•	ÕÑÑ½¹Ì ¤íô¤ì(€€€€ ˆ…ÉI½Ñ…Ñ•1•™Ğˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùíÍÑ…Ñ”¹É½Ñ…Ñ¥½¸´õ5…Ñ ¹A$¼ÄÈíÍÑ…Ñ”¹áÉ]¥É•Í¥ÉÑäõÑÉÕ”íô¤ì€ ˆ…ÉI½Ñ…Ñ•I¥¡Ğˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùíÍÑ…Ñ”¹É½Ñ…Ñ¥½¸¬õ5…Ñ ¹A$¼ÄÈíÍÑ…Ñ”¹áÉ]¥É•Í¥ÉÑäõÑÉÕ”íô¤ì(€€€€ ˆ…ÉM…±•½İ¸ˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùÍÑ…Ñ”¹Í…±”õ5…Ñ ¹µ…à ¸ÔÔ±ÍÑ…Ñ”¹Í…±”´¸Ä¤¤ì€ ˆ…ÉM…±•UÀˆ¤ü¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰±¥¬ˆ° ¤ôùÍÑ…Ñ”¹Í…±”õ5…Ñ ¹µ¥¸ È±ÍÑ…Ñ”¹Í…±”¬¸Ä¤¤ì(€€€É•¹‘•É½µÁ½¹•¹Ñ1¥ÍĞ ¤ìÕÁ‘…Ñ•	ÕÑÑ½¹Ì ¤ì(€€€€¼¼•Ñ•Ÿ¼Á…ÍÍ¥Ù„Á…É„…ÑÕ…±¥é…È¼Ñ•áÑ¼°Í•´Í•ÈÉ•ÅÕ¥Í¥Ñ¼Á…É„¼±¥ÅÕ”ƒé¹¥¼¸(€€€Í•ÑQ¥µ•½ÕĞ  ¤ôùì¥˜ …ÍÑ…Ñ”¹Í•ÍÍ¥½¸¤¡•­MÕÁÁ½ÉĞ ¤ìô°ÈÔÀ¤ì(€ô(€™Õ¹Ñ¥½¸…Ñ¥Ù…Ñ” ¥ì¥˜ …ÍÑ…Ñ”¹¡•­•¤¡•­MÕÁÁ½ÉĞ ¤ìô(€€¼¼=Ì·Í‘Õ±½ÌÏ¼¥¹Í•É¥‘½Ì‘¥¹…µ¥…µ•¹Ñ”…ÃÍÌ¼…ÉÉ•…µ•¹Ñ¼‘„Ã…¥¹„¸(€€¼¼M”=5½¹Ñ•¹Ñ1½…‘•«„Á…ÍÍ½Ô°±¥…È½Ì‰½ÓÕ•Ì¥µ•‘¥…Ñ…µ•¹Ñ”¸(€¥˜¡‘½Õµ•¹Ğ¹É•…‘åMÑ…Ñ”€ôôô€‰±½…‘¥¹œˆ¤‘½Õµ•¹Ğ¹…‘‘Ù•¹Ñ1¥ÍÑ•¹•È ‰=5½¹Ñ•¹Ñ1½…‘•ˆ±‰¥¹±í½¹”éÑÉÕ•ô¤ì(€•±Í”‰¥¹ ¤ì(€İ¥¹‘½Ü¹½‘…Hõí¡•­MÕÁÁ½ÉĞ±•¹Ñ•ÉH±•á¥ÑH±…Ñ¥Ù…Ñ”±•¹Ñ•É5½‰¥±•H±±½Í•5½‰¥±•H±…Ñ¥Ù…Ñ•5½‰¥±”±ÍÑ…Ñ”±Í•Ñ!…É‘İ…É”¡Í¹…ÁÍ¡½Ğ¥íÍÑ…Ñ”¹¡…É‘İ…É”õÍ¹…ÁÍ¡½Ğíô±¥µÁ½ÉÑAÉ½Ñ½ÑåÁ•ôì)ô¤ ¤ì(

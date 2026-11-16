@@ -6,6 +6,8 @@ import { join } from "node:path";
 const root=join(import.meta.dirname,"..");
 const html=readFileSync(join(root,"index.html"),"utf8");
 const xr=readFileSync(join(root,"js/esp32-ar.js"),"utf8");
+const handControls=readFileSync(join(root,"js/xr-hand-controls.js"),"utf8");
+const loader=readFileSync(join(root,"script.js"),"utf8");
 
 test("modo de óculos oferece VR fechado e RA com passthrough",()=>{
   assert.match(html,/data-xr-experience="vr"/);
@@ -71,10 +73,28 @@ test("teclado VR envia teclas, espaço, nova linha e apagar para o editor",()=>{
 test("mãos agarram e movem ESP32 continuamente até soltar a pinça",()=>{
   assert.match(xr,/session\.addEventListener\("selectstart",onSelectStart\)/);
   assert.match(xr,/session\.addEventListener\("selectend",onSelectEnd\)/);
-  assert.match(xr,/function updateGrabbed\(frame\)/);
-  assert.match(xr,/index-finger-tip/);
-  assert.match(xr,/state\.grabbed=\{source,object,distance:grabDistance,offset:/);
+  assert.match(xr,/function updateHandGestures\(frame,time\)/);
+  assert.match(xr,/function updateHandGrab\(\)/);
+  assert.match(xr,/state\.grabbed=\{handId:sample\.id,source:sample\.source,object,distance:/);
   assert.match(xr,/object\.y=\.78/);
+});
+
+test("gestos usam suavização, histerese, tolerância à perda e troca de mão",()=>{
+  assert.match(loader,/js\/xr-hand-controls\.js/);
+  assert.match(handControls,/class OneEuroScalar/);
+  assert.match(handControls,/pinchStartRatio:\.28/);
+  assert.match(handControls,/pinchReleaseRatio:\.44/);
+  assert.match(handControls,/trackingGraceMs:260/);
+  assert.match(xr,/OBJETO TRANSFERIDO PARA A OUTRA MÃO/);
+  assert.doesNotMatch(xr,/button&&button!==touch\.button\)activateVRAction/);
+});
+
+test("duas pinças controlam escala e rotação sem mudar a cena",()=>{
+  assert.match(xr,/function startTwoHandTransform\(secondId\)/);
+  assert.match(xr,/function updateTwoHandTransform\(\)/);
+  assert.match(xr,/setObjectScale\(grab\.object,transform\.scale\*distanceNow\/transform\.distance\)/);
+  assert.match(xr,/setObjectRotation\(grab\.object,transform\.rotation\+normalizedAngle/);
+  assert.match(xr,/DUAS PINÇAS • AFASTE PARA ESCALA • GIRE PARA ROTACIONAR/);
 });
 
 test("VR inclui editor Arduino, teclado virtual e execução sem tela externa",()=>{
@@ -86,8 +106,8 @@ test("VR inclui editor Arduino, teclado virtual e execução sem tela externa",(
   assert.match(xr,/runtime\.start\(state\.vrCode\)/);
   assert.match(xr,/activateVRAction/);
   assert.match(xr,/function buttonAtFinger\(tip\)/);
-  assert.match(xr,/function updateHandTouches\(frame\)/);
-  assert.match(xr,/button&&button!==touch\.button\)activateVRAction/);
+  assert.match(xr,/function beginHandPinch\(sample,frame\)/);
+  assert.match(xr,/if\(button\)\{activateVRAction/);
   assert.match(html,/Toque PROGRAMAR/);
   assert.match(xr,/isSystemKeyboardSupported/);
   assert.match(xr,/keyboard\.visible=false|keyboard\.rotation\.set\([^\n]+keyboard\.visible=false/);
