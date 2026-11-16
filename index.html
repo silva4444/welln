@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://vlibras.gov.br" crossorigin>
   <link rel="dns-prefetch" href="//vlibras.gov.br">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap">
-  <link rel="stylesheet" href="style.css?v=14.7.4">
+  <link rel="stylesheet" href="style.css?v=14.7.5">
   <script src="js/device-mode.js?v=12.3.0"></script>
   <link rel="stylesheet" href="components/esp32-reference.css?v=14.3.0">
 </head>
@@ -92,7 +92,8 @@
       <div class="streak-card student-navigation"><span>⚡</span><div><small>SEQUÊNCIA DE ESTUDOS</small><strong>3 dias praticando</strong><p>Faça uma atividade hoje para continuar.</p></div></div>
       <div class="teacher-sidebar-card teacher-navigation" hidden><span>✦</span><div><small>AMBIENTE EXCLUSIVO</small><strong>Gestão organizada</strong><p>Cada ferramenta em seu próprio espaço.</p></div></div>
       <div class="teacher-sidebar-card admin-navigation" hidden><span>✓</span><div><small>ADMINISTRAÇÃO</small><strong>Controle institucional</strong><p>Dados, acessos e governança em um só lugar.</p></div></div>
-      <div class="profile"><span class="avatar" id="profileAvatar">AL</span><div><strong id="profileName">Aluno coda</strong><small id="profileXp">0 XP • Explorador</small></div><div class="profile-tools"><button class="accessibility-button" id="changePasswordButton" title="Alterar senha" aria-label="Alterar senha">🔑</button><button class="accessibility-button" id="accessibilityButton" aria-label="Opções de acessibilidade" aria-expanded="false">Aa</button><button class="theme-toggle" id="themeToggle" aria-label="Alternar tema"><span class="sun">☀</span><span class="moon">☾</span></button></div><button class="logout-button" id="logoutButton" title="Sair" aria-label="Sair da conta">↪</button></div>
+      <div class="sidebar-utility"><button type="button" class="open-about">Sobre nós</button><button type="button" class="open-password">Alterar senha</button></div>
+      <div class="profile"><span class="avatar" id="profileAvatar">AL</span><div><strong id="profileName">Aluno coda</strong><small id="profileXp">0 XP • Explorador</small></div><div class="profile-tools"><button class="accessibility-button open-password" id="changePasswordButton" type="button" title="Alterar senha" aria-label="Alterar senha">🔑</button><button class="accessibility-button" id="accessibilityButton" aria-label="Opções de acessibilidade" aria-expanded="false">Aa</button><button class="theme-toggle" id="themeToggle" aria-label="Alternar tema"><span class="sun">☀</span><span class="moon">☾</span></button></div><button class="logout-button" id="logoutButton" title="Sair" aria-label="Sair da conta">↪</button></div>
     </aside>
     <button class="backdrop" id="backdrop" aria-label="Fechar menu"></button>
 
@@ -113,7 +114,7 @@
               <span class="eyebrow"><i></i> ESTUDO QUE VIRA PROJETO</span>
               <h1>Aprenda tecnologia.<br><em>Construa de verdade.</em></h1>
               <p>Trilhas completas, aulas em etapas, prática no meio do conteúdo e um laboratório para experimentar cada linguagem.</p>
-              <div class="hero-actions"><button class="primary" data-view="materias">Escolher uma matéria <b>→</b></button><button class="secondary" data-view="laboratorio">&lt;/&gt; Abrir laboratório</button></div>
+              <div class="hero-actions"><button class="primary" data-view="materias">Escolher uma matéria <b>→</b></button><button class="secondary" data-view="laboratorio">&lt;/&gt; Abrir laboratório</button><button class="secondary open-about" type="button">Sobre nós</button></div>
               <div class="hero-chips"><span>14 trilhas</span><span>98 aulas</span><span>98 atividades</span><span>4 projetos ESP32</span></div>
             </div>
             <div class="learning-card">
@@ -151,6 +152,7 @@
               <button data-category="Hardware"><i class="hardware">◈</i><span><small>HARDWARE E IOT</small><strong>ESP32 com projetos em 3D</strong><em>7 aulas • 4 montagens</em></span><b>→</b></button>
             </div>
           </section>
+          <section class="home-about" aria-labelledby="homeAboutTitle"><span class="kicker">SOBRE NÓS</span><h2 id="homeAboutTitle">Tecnologia se aprende construindo</h2><p>A CODA Educacional reúne aulas, prática de programação e experiências com ESP32 em 3D para transformar estudos em projetos. Aprenda no seu ritmo, acompanhe seu progresso e compartilhe descobertas com a comunidade.</p><button class="open-about" type="button">Conheça a CODA →</button></section>
         </section>
 
         <section class="view" id="meu-espaco">
@@ -538,6 +540,8 @@
     </aside>
     <div class="toast" id="toast" role="status"></div>
   </div>
+  <div class="account-dialog-back" id="changePasswordDialog" role="dialog" aria-modal="true" aria-labelledby="changePasswordTitle" hidden><form class="account-dialog-card" id="changePasswordForm"><header><div><span class="kicker">SEGURANÇA DA CONTA</span><h2 id="changePasswordTitle">Alterar senha</h2><p>Defina uma senha nova para acessar sua conta.</p></div><button id="closePasswordDialog" type="button" aria-label="Fechar">×</button></header><div class="account-dialog-fields"><label>Senha atual<input id="currentPassword" type="password" autocomplete="current-password" required></label><label>Nova senha<input id="newPassword" type="password" autocomplete="new-password" minlength="6" required aria-describedby="passwordRequirements"></label><small id="passwordRequirements">Use pelo menos 6 caracteres e uma senha diferente da atual.</small><label>Confirme a nova senha<input id="confirmNewPassword" type="password" autocomplete="new-password" minlength="6" required></label><p id="changePasswordError" class="account-form-error" role="alert" hidden></p></div><footer><button id="cancelPasswordDialog" type="button">Cancelar</button><button class="primary" type="submit">Salvar nova senha</button></footer></form></div>
+  <div class="account-dialog-back" id="aboutDialog" role="dialog" aria-modal="true" aria-labelledby="aboutDialogTitle" hidden><section class="account-dialog-card about-dialog-card"><header><div><span class="kicker">CODA EDUCACIONAL</span><h2 id="aboutDialogTitle">Sobre nós</h2><p>Aprender, praticar e criar.</p></div><button id="closeAboutDialog" type="button" aria-label="Fechar">×</button></header><div class="about-dialog-body"><p>A CODA Educacional é um espaço de aprendizagem em tecnologia. Aqui você encontra 14 trilhas e 98 aulas, laboratórios de código, atividades e uma bancada interativa para explorar o ESP32 em 3D.</p><p>Nosso objetivo é ajudar cada pessoa a sair da teoria e construir projetos, com espaço para acompanhar o progresso e trocar ideias na comunidade.</p></div><footer><button id="aboutDone" type="button" class="primary">Voltar à CODA</button></footer></section></div>
   <div vw class="enabled" aria-label="Tradutor de Libras"><div vw-access-button class="active"></div><div vw-plugin-wrapper><div class="vw-plugin-top-wrapper"></div></div></div>
   <script src="public-api.js?v=10.5.1"></script>
   <script src="js/utils.js?v=10.5.0"></script>
@@ -545,7 +549,7 @@
   <script src="admin.js?v=10.5.0.5"></script>
   <script src="js/social-network-v3.js?v=10.9.1"></script>
   <script src="lesson-content.js?v=10.5.0"></script>
-  <script src="script.js?v=14.6.9"></script>
+  <script src="script.js?v=14.6.10"></script>
   <script src="js/redesign.js?v=11.2.0"></script>
   <script src="js/lesson-tabs.js?v=14.6.0"></script>
 </body>

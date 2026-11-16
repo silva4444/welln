@@ -11,7 +11,8 @@
 @import url("./components/esp32-webgl.css?v=14.4.0");
 @import url("./components/social-network.css?v=10.6.0");
 @import url("./components/social-profile-admin.css?v=10.8.1");
-@import url("./components/social-v3.css?v=10.9.0");
+@import url("./components/account-about.css?v=1.0.0");
+@import url("./components/social-v3.css?v=10.9.1");
 @import url("./pages/student.css");
 @import url("./pages/teacher.css");
 @import url("./pages/admin.css?v=10.5.0.4");

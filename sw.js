@@ -1,10 +1,12 @@
 "use strict";
 
-const CACHE_NAME = "coda-estudos-v14-6-ui-fix";
+const CACHE_NAME = "coda-estudos-v14-6-account-about";
 const CORE_FILES = [
   "./index.html",
   "./vr-preview.html",
-  "./style.css?v=14.7.4",
+  "./style.css?v=14.7.5",
+  "./components/account-about.css?v=1.0.0",
+  "./components/social-v3.css?v=10.9.1",
   "./public-api.js?v=10.5.1",
   "./platform.js?v=10.2.1",
   "./admin.js?v=10.5.0.5",
@@ -30,7 +32,7 @@ const CORE_FILES = [
   "./dados.json",
   "./banco.json",
   "./manifest.json",
-  "./script.js?v=14.6.9",
+  "./script.js?v=14.6.10",
   "./components/esp32-reference.css?v=14.3.0",
   "./js/utils.js?v=14.0.0",
   "./js/state.js?v=14.6.0",
@@ -56,7 +58,7 @@ const CORE_FILES = [
   "./js/esp32-firmware.js?v=14.3.0",
   "./js/tutor.js?v=14.0.0",
   "./js/institution.js?v=14.0.0",
-  "./js/core.js?v=14.6.9",
+  "./js/core.js?v=14.6.10",
   "./js/esp32-runtime.js?v=14.0.0",
   "./js/device-mode.js?v=12.2.0",
   "./js/device-mode.js?v=12.3.0",

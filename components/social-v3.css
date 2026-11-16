@@ -8,3 +8,20 @@
 .social-admin-actions{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 20px}.social-admin-actions button{min-height:40px;padding:.5rem .75rem;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);color:var(--text)}.social-admin-ranking{display:grid;gap:7px}.social-admin-ranking p{display:flex;align-items:center;gap:10px;margin:0;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}.social-admin-ranking p>b{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:var(--social-soft);color:var(--social-accent)}.social-admin-ranking span,.social-admin-ranking small{display:block}.social-admin-ranking small{margin-top:3px;color:var(--muted);font-size:.65rem}.social-profile-posts article>button{margin-top:8px;border:0;background:transparent;color:var(--social-accent);font-weight:800}
 @media(max-width:760px){.social-poll-fields{grid-template-columns:1fr}.social-group-grid{grid-template-columns:1fr}.social-event-list article{align-items:flex-start;flex-wrap:wrap}.social-event-list article>div{min-width:calc(100% - 90px)}.social-event-list article>button{width:100%}.social-reaction-summary{overflow:auto;white-space:nowrap}.social-reaction-summary small{margin-left:0}}
 .social-sidebar-empty{margin:8px 0 0;color:var(--muted);font-size:.72rem;line-height:1.5}
+
+/* Campos e ações do compositor de publicações. */
+.coda-social-composer{align-items:flex-start;padding:clamp(14px,2vw,22px)}
+.coda-social-composer>div{min-width:0;grid-template-columns:minmax(0,1fr) minmax(150px,200px);gap:14px}
+.coda-social-composer label{min-width:0;color:var(--text);font-size:.8rem;line-height:1.4}
+.coda-social-composer :is(input:not([type="file"]),select,textarea){width:100%;min-width:0;min-height:46px;margin-top:6px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);font-size:.9rem;font-weight:500;line-height:1.45;box-shadow:none}
+.coda-social-composer textarea{min-height:120px;resize:vertical}
+.coda-social-composer :is(input,textarea)::placeholder{color:var(--muted);opacity:1;font-weight:400}
+.coda-social-composer :is(input,select,textarea):focus-visible{border-color:var(--social-accent);outline:3px solid color-mix(in srgb,var(--social-accent) 22%,transparent);outline-offset:1px}
+.coda-social-composer .social-attachment-row{grid-column:1/-1;min-width:0}
+.coda-social-composer .social-attachment-button input[type="file"]{position:absolute;width:1px!important;height:1px;min-height:1px;padding:0;opacity:0}
+.coda-social-composer footer{display:flex;flex-wrap:wrap;align-items:center;gap:10px;min-width:0;margin-top:2px}
+.coda-social-composer footer small{flex:1 1 250px;line-height:1.5}
+.coda-social-composer footer button{min-height:44px;padding:.65rem 1rem}
+.coda-social-composer footer .primary{border-color:var(--social-accent);background:var(--social-accent);color:#fff}
+@media(max-width:760px){.coda-social-composer>div{grid-template-columns:minmax(0,1fr)}.coda-social-composer :is(label,textarea,footer){grid-column:1/-1}.coda-social-composer footer small{flex-basis:100%}}
+@media(max-width:480px){.coda-social-composer{gap:9px}.coda-social-composer>.social-avatar{width:32px;height:32px;flex:0 0 32px}.coda-social-composer footer button{flex:1}}

@@ -1331,13 +1331,24 @@ function applyAccessibility(){const settings=state.accessibility;document.docume
 function setAccessibilityPanel(open){$("#accessibilityPanel").hidden=!open;$("#accessibilityButton").setAttribute("aria-expanded",String(open));$("#loginAccessibilityButton").setAttribute("aria-expanded",String(open));if(open)setTimeout(()=>$("[data-font-size]",$("#accessibilityPanel")).focus(),30)}
 function registerOfflineSupport(){if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(error=>console.warn("Falha ao registrar service worker:",error?.message||error))}
 function bindAccountSecurity(){
-  $("#changePasswordButton")?.addEventListener("click",async()=>{
-    const currentPassword=prompt("Digite sua senha atual:");if(currentPassword===null)return;
-    const newPassword=prompt("Digite uma nova senha (mínimo de 16 caracteres):");if(newPassword===null)return;
-    const confirmation=prompt("Confirme a nova senha:");if(confirmation===null)return;
-    if(newPassword!==confirmation){showToast("As senhas não coincidem.");return}
-    try{await CodaAPI.changePassword({currentPassword,newPassword});showToast("Senha alterada com sucesso.")}
-    catch(error){showToast(error.message)}
+  const passwordDialog=$("#changePasswordDialog"),aboutDialog=$("#aboutDialog"),form=$("#changePasswordForm"),errorBox=$("#changePasswordError");
+  let previousFocus=null;
+  const open=(dialog,focus)=>{previousFocus=document.activeElement;dialog.hidden=false;$("#sidebar").classList.remove("is-open");$("#backdrop").classList.remove("is-open");focus.focus()};
+  const close=dialog=>{dialog.hidden=true;if(dialog===passwordDialog){form.reset();errorBox.hidden=true;errorBox.textContent=""}previousFocus?.focus?.()};
+  $$(".open-password").forEach(button=>button.addEventListener("click",()=>open(passwordDialog,$("#currentPassword"))));
+  $$(".open-about").forEach(button=>button.addEventListener("click",()=>open(aboutDialog,$("#closeAboutDialog"))));
+  [["#closePasswordDialog",passwordDialog],["#cancelPasswordDialog",passwordDialog],["#closeAboutDialog",aboutDialog],["#aboutDone",aboutDialog]].forEach(([selector,dialog])=>$(selector).addEventListener("click",()=>close(dialog)));
+  [passwordDialog,aboutDialog].forEach(dialog=>dialog.addEventListener("click",event=>{if(event.target===dialog)close(dialog)}));
+  document.addEventListener("keydown",event=>{if(event.key!=="Escape")return;if(!passwordDialog.hidden){close(passwordDialog);event.stopPropagation()}else if(!aboutDialog.hidden){close(aboutDialog);event.stopPropagation()}});
+  form.addEventListener("submit",async event=>{
+    event.preventDefault();errorBox.hidden=true;errorBox.textContent="";
+    const currentPassword=$("#currentPassword").value,newPassword=$("#newPassword").value,confirmation=$("#confirmNewPassword").value;
+    const error=newPassword.length<6?"Use pelo menos 6 caracteres.":newPassword===currentPassword?"Escolha uma senha diferente da atual.":newPassword!==confirmation?"As novas senhas não coincidem.":"";
+    if(error){errorBox.textContent=error;errorBox.hidden=false;return}
+    const submit=form.querySelector('[type="submit"]');submit.disabled=true;submit.textContent="Salvando...";
+    try{await CodaAPI.changePassword({currentPassword,newPassword});close(passwordDialog);showToast("Senha alterada com sucesso. Use a nova senha no próximo acesso.")}
+    catch(cause){errorBox.textContent=cause.message||"Não foi possível alterar a senha.";errorBox.hidden=false}
+    finally{submit.disabled=false;submit.textContent="Salvar nova senha"}
   });
 }
 const vlibrasUnityAssets=["playerweb.data.unityweb?v=7.6.0","playerweb.wasm.code.unityweb?v=7.6.0","playerweb.wasm.framework.unityweb?v=7.6.0"];

@@ -57,3 +57,17 @@ test("administrador adicional é provisionado sem substituir o administrador ori
   assert.equal(result.status,0,result.stderr);
   assert.deepEqual(JSON.parse(result.stdout.trim()),{original:200,added:200,role:'Admin',denied:401});
 });
+
+test("troca de senha exige a senha atual e aceita a nova no próximo login",()=>{
+  const scenario=`
+    import {createCodaServer} from './server.mjs';
+    const server=createCodaServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const origin='http://127.0.0.1:'+server.address().port;
+    const login=async password=>{const response=await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({email:'dono@example.com',password,role:'Admin',adminCode:'ADMIN-CODA'})});return {status:response.status,cookie:response.headers.get('set-cookie')?.split(';')[0]}};
+    try{const initial=await login('SenhaInicialForte2026');const change=async(currentPassword,newPassword)=>{const response=await fetch(origin+'/api/auth/change-password',{method:'POST',headers:{origin,'content-type':'application/json',cookie:initial.cookie},body:JSON.stringify({currentPassword,newPassword})});return response.status};const wrong=await change('SenhaErrada2026','NovaSenhaSegura2026');const changed=await change('SenhaInicialForte2026','NovaSenhaSegura2026');const old=await login('SenhaInicialForte2026');const next=await login('NovaSenhaSegura2026');console.log(JSON.stringify({initial:initial.status,wrong,changed,old:old.status,next:next.status}))}finally{await new Promise(resolve=>server.close(resolve))}
+  `;
+  const env={...process.env,NODE_ENV:'production',CODA_DATABASE:':memory:',CODA_TEACHER_EMAIL:'professor@example.com',CODA_TEACHER_PASSWORD:'SenhaProfessorForte2026',CODA_ADMIN_EMAIL:'dono@example.com',CODA_ADMIN_PASSWORD:'SenhaInicialForte2026'};
+  const result=spawnSync(process.execPath,['--input-type=module','-e',scenario],{cwd:new URL('../',import.meta.url),env,encoding:'utf8',timeout:20_000});
+  assert.equal(result.status,0,result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout.trim()),{initial:200,wrong:401,changed:200,old:401,next:200});
+});
