@@ -94,17 +94,21 @@ body.admin-login .login-screen {
   color: var(--auth-white);
 }
 .login-screen .login-brand b {
-  background: var(--auth-white);
-  color: var(--auth-ink);
+  background: var(--auth-white) !important;
+  color: var(--auth-ink) !important;
   box-shadow: none;
 }
+.login-screen .login-copy h1,
+.login-screen .login-copy > p { color: var(--auth-white) !important; }
+.login-screen .login-copy > p { opacity: .88; }
+.login-screen .eyebrow i { background: var(--auth-white) !important; }
 .login-screen .login-copy h1 { font-size: clamp(38px, 4.5vw, 68px); }
 .login-screen .login-copy > p { max-width: 54ch; }
 .login-screen .login-features span,
 .login-screen .login-orbit :is(span, b) {
-  background: color-mix(in srgb, var(--auth-white) 10%, var(--login-accent));
-  border-color: color-mix(in srgb, var(--auth-white) 38%, var(--login-accent));
-  color: var(--auth-white);
+  background: color-mix(in srgb, var(--auth-white) 10%, var(--login-accent)) !important;
+  border-color: color-mix(in srgb, var(--auth-white) 38%, var(--login-accent)) !important;
+  color: var(--auth-white) !important;
 }
 .login-screen .login-panel,
 .login-screen .login-card,
