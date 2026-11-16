@@ -24,7 +24,7 @@ test("entrada dos três perfis tem a mesma paleta com contraste AA", () => {
   assert.ok(contrast(palette["auth-ink"], palette["auth-white"]) >= 4.5);
   assert.match(css, /body\.teacher-login \.login-screen,[\s\S]*body\.admin-login \.login-screen\s*\{/);
   assert.ok(manifest.indexOf("styles/visual-refresh.css") > manifest.indexOf("styles/polish.css"));
-  assert.match(html, /style\.css\?v=14\.7\.2/);
+  assert.match(html, /style\.css\?v=14\.7\.3/);
 });
 
 test("cartões e controles continuam legíveis em telas pequenas e com menos movimento", () => {
