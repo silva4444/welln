@@ -1,16 +1,17 @@
 "use strict";
 
-const CACHE_NAME = "coda-estudos-v14-6-vr-purple-lab";
+const CACHE_NAME = "coda-estudos-v14-6-admin-login-fix";
 const CORE_FILES = [
   "./index.html",
   "./vr-preview.html",
-  "./style.css?v=14.6.0",
+  "./style.css?v=14.7.2",
   "./public-api.js?v=10.5.0",
   "./platform.js?v=10.2.1",
   "./admin.js?v=10.5.0.3",
   "./lesson-content.js?v=10.2.1",
   "./styles/redesign.css?v=11.3.0",
   "./styles/polish.css?v=14.6.0",
+  "./styles/visual-refresh.css?v=14.7.2",
   "./styles/legacy.css",
   "./styles/base.css",
   "./styles/responsive.css",
@@ -29,7 +30,7 @@ const CORE_FILES = [
   "./dados.json",
   "./banco.json",
   "./manifest.json",
-  "./script.js?v=14.6.7",
+  "./script.js?v=14.6.8",
   "./components/esp32-reference.css?v=14.3.0",
   "./js/utils.js?v=14.0.0",
   "./js/state.js?v=14.6.0",
@@ -55,7 +56,7 @@ const CORE_FILES = [
   "./js/esp32-firmware.js?v=14.3.0",
   "./js/tutor.js?v=14.0.0",
   "./js/institution.js?v=14.0.0",
-  "./js/core.js?v=14.6.0",
+  "./js/core.js?v=14.6.8",
   "./js/esp32-runtime.js?v=14.0.0",
   "./js/device-mode.js?v=12.2.0",
   "./js/device-mode.js?v=12.3.0",

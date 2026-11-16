@@ -44,7 +44,7 @@ O aluno agora tem dois fluxos separados na tela inicial:
 
 A matrícula aceita de 3 a 30 letras, números, ponto, traço ou sublinhado e não pode se repetir. O professor consegue localizar o aluno cadastrado e adicioná-lo diretamente a uma turma.
 
-Professor e administrador não usam o cadastro público do aluno. O próprio primeiro login cria a conta do perfil:
+Professor e administrador não usam o cadastro público do aluno. O primeiro acesso com o código correto cria a conta do perfil. Para o e-mail reservado nas variáveis de ambiente, a conta é preparada na inicialização e o primeiro acesso com o código permite escolher uma senha própria:
 
 1. Escolha **Professor** ou **Administrador**.
 2. Digite seu próprio e-mail.
@@ -53,6 +53,8 @@ Professor e administrador não usam o cadastro público do aluno. O próprio pri
 5. Se o e-mail ainda não estiver cadastrado, a Coda cria a conta. Nos próximos acessos, use o mesmo e-mail, a mesma senha e o código.
 
 Os códigos administrativos não são publicados no repositório. Defina e-mails, senhas e códigos fortes pelas variáveis de ambiente `CODA_TEACHER_EMAIL`, `CODA_TEACHER_PASSWORD`, `CODA_TEACHER_CODE`, `CODA_ADMIN_EMAIL`, `CODA_ADMIN_PASSWORD` e `CODA_ADMIN_CODE` antes de iniciar a versão pública.
+
+No Render sem disco persistente, o SQLite em `data/coda.sqlite` pode ser recriado após uma implantação ou reinício. Para preservar contas e progresso entre implantações, configure armazenamento persistente ou migre o banco para um serviço gerenciado antes de usar dados reais.
 
 ## Tutor Coda 10.5 — sem API de IA
 

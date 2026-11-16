@@ -157,6 +157,16 @@ body.admin-login .login-screen {
   color: var(--auth-white);
 }
 .login-screen .login-card :is(.login-accessibility, .login-kicker) { color: var(--login-accent); }
+.login-screen .login-error {
+  margin: 12px 0 0;
+  padding: 11px 13px;
+  border: 1px solid var(--login-accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--login-accent) 9%, var(--auth-white));
+  color: var(--auth-ink);
+  font-size: .88rem;
+  line-height: 1.5;
+}
 .login-screen .login-orbit,
 .login-screen .login-orbit > * { animation: none; }
 .login-screen .login-orbit { border-color: color-mix(in srgb, var(--auth-white) 30%, var(--login-accent)); }

@@ -254,8 +254,20 @@ async function handleAuth(req, res, pathname) {
       createUser({ name: managedAccountName(email, role), email, passwordHash: passwordData.hash, passwordSalt: passwordData.salt, role });
       row = findUserByEmail(email); createdAccount = true;
     } else {
-      if (!verifyPassword(password, row.password_salt, row.password_hash)) return fail(res, 401, "E-mail ou senha incorretos.", "invalid_credentials");
       if (row.role !== role) return fail(res, 403, `Esta conta pertence ao portal de ${row.role.toLowerCase()}.`, "wrong_portal");
+      if (!verifyPassword(password, row.password_salt, row.password_hash)) {
+        // A conta reservada é criada no início com a senha de ambiente. No primeiro
+        // acesso, o dono do código do perfil pode escolher sua senha. Depois disso,
+        // o hash deixa de ser o inicial e o código não redefine a senha novamente.
+        const reservedEmail = role === "Admin" ? environment.CODA_ADMIN_EMAIL : role === "Professor" ? environment.CODA_TEACHER_EMAIL : "";
+        const initialPassword = role === "Admin" ? environment.CODA_ADMIN_PASSWORD : role === "Professor" ? environment.CODA_TEACHER_PASSWORD : "";
+        const firstAccess = reservedEmail && email === normalizeEmail(reservedEmail) && initialPassword &&
+          verifyPassword(initialPassword, row.password_salt, row.password_hash);
+        if (!firstAccess) return fail(res, 401, "E-mail ou senha incorretos.", "invalid_credentials");
+        const passwordData = hashPassword(password);
+        updatePassword(row.id, passwordData.hash, passwordData.salt);
+        createdAccount = true;
+      }
     }
     touchUser(row.id); issueSession(res, row.id, body.remember !== false);
     return json(res, 200, { user: publicUser(row), created: createdAccount });
