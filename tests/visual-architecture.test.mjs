@@ -44,7 +44,7 @@ test("computador, tablet e celular têm layouts e navegação responsivos", () =
 
 test("diretório administrativo mantém cada usuário em uma linha estável e legível", () => {
   assert.match(adminStyles, /\.admin-view \.admin-user-list>\.admin-user-row\{/);
-  assert.match(adminStyles, /grid-template-areas:"avatar identity role seen action"/);
+  assert.match(adminStyles, /grid-template-areas:"avatar identity role seen actions"/);
   assert.match(adminStyles, /min-height:76px/);
   assert.match(adminStyles, /font-size:max\(\.875rem/);
   assert.match(adminStyles, /text-overflow:ellipsis/);

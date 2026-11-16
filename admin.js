@@ -27,14 +27,14 @@
   }
   function createUserRow(user){
     const initials=String(user.name||"US").trim().split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase();
-    const article=document.createElement("article"),avatar=document.createElement("span"),identity=document.createElement("div"),name=document.createElement("strong"),email=document.createElement("small"),role=document.createElement("select"),seen=document.createElement("time"),action=document.createElement("button"),reset=document.createElement("button");
+    const article=document.createElement("article"),avatar=document.createElement("span"),identity=document.createElement("div"),name=document.createElement("strong"),email=document.createElement("small"),role=document.createElement("select"),seen=document.createElement("time"),actions=document.createElement("div"),action=document.createElement("button"),reset=document.createElement("button");
     const self=Number(user.id)===Number(state.user?.id);
     article.className="admin-user-row";
     article.dataset.userId=String(user.id);
     avatar.textContent=initials;
     name.textContent=String(user.name||"Usuário");
     email.textContent=String(user.email||"—");
-    identity.append(name,email);
+    identity.className="admin-user-identity";identity.append(name,email);
     role.dataset.adminRole=String(user.id);
     role.setAttribute("aria-label",`Grupo de acesso de ${name.textContent}`);
     ["Aluno","Professor","Admin"].forEach(value=>{const option=document.createElement("option");option.value=value;option.textContent=value;option.selected=value===user.role;role.append(option)});
@@ -48,7 +48,8 @@
     action.setAttribute("aria-label",`${action.textContent} acesso de ${name.textContent}`);
     if(self){action.disabled=true;action.title="Seu próprio acesso não pode ser pausado"}
     reset.type="button";reset.className="reset-password";reset.textContent="Redefinir senha";reset.dataset.resetUserPassword=String(user.id);reset.setAttribute("aria-label",`Redefinir senha de ${name.textContent}`);if(self){reset.disabled=true;reset.title="Use a opção Alterar senha da sua conta"}reset.onclick=async()=>{const password=prompt("Defina uma senha temporária com pelo menos 16 caracteres para este usuário:");if(password===null)return;if(password.length<16){toast("Use pelo menos 16 caracteres.");return}if(!confirm("A senha atual será substituída. Compartilhe a senha temporária por um canal seguro."))return;try{await CodaAPI.resetUserPassword(user.id,password);toast("Senha temporária definida. Avise o usuário por um canal seguro.")}catch(error){toast(error.message)}};
-    article.append(avatar,identity,role,seen,action,reset);
+    actions.className="admin-user-actions";actions.append(action,reset);
+    article.append(avatar,identity,role,seen,actions);
     return article;
   }
   function classRow(item,compact=false){

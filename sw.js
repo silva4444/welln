@@ -1,13 +1,13 @@
 "use strict";
 
-const CACHE_NAME = "coda-estudos-v14-6-staff-approval";
+const CACHE_NAME = "coda-estudos-v14-6-ui-fix";
 const CORE_FILES = [
   "./index.html",
   "./vr-preview.html",
-  "./style.css?v=14.7.3",
+  "./style.css?v=14.7.4",
   "./public-api.js?v=10.5.1",
   "./platform.js?v=10.2.1",
-  "./admin.js?v=10.5.0.4",
+  "./admin.js?v=10.5.0.5",
   "./lesson-content.js?v=10.2.1",
   "./styles/redesign.css?v=11.3.0",
   "./styles/polish.css?v=14.6.0",
@@ -25,7 +25,7 @@ const CORE_FILES = [
   "./components/circuit-simulator.css?v=10.9.3",
   "./pages/student.css",
   "./pages/teacher.css",
-  "./pages/admin.css?v=10.5.0.3",
+  "./pages/admin.css?v=10.5.0.4",
   "./components/esp32-webgl.css?v=14.4.0",
   "./dados.json",
   "./banco.json",
