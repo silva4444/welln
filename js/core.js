@@ -417,7 +417,13 @@ function lessonVideoData(course,index,mode="short"){
   const short=mode!=="full"&&!override;
   return {kind:"youtube",id,courseId:course.id,lessonIndex:index,url,title:`${course.name} — ${lessonTitle(course,index)}`,duration:short?(source.duration||5):20,minutes:short?(source.duration||5):20,durationSeconds:60,start,end,label:override?"VÍDEO DO PROFESSOR":source.label,note:override?.note||`${source.title}. Trecho selecionado para a aula ${index+1}, relacionado a “${lessonTitle(course,index)}”. Assista ao vídeo real e depois retorne ao exercício.`,slides,transcript};
 }
-function youtubeEmbedUrl(video){const query=new URLSearchParams({rel:"0",modestbranding:"1"});if(video.start)query.set("start",String(video.start));if(video.end)query.set("end",String(video.end));return `https://www.youtube-nocookie.com/embed/${video.id}?${query}`}
+function youtubeEmbedUrl(video,{autoplay=false}={}){
+  const query=new URLSearchParams({rel:"0",playsinline:"1"});
+  if(autoplay)query.set("autoplay","1");
+  if(video.start)query.set("start",String(video.start));
+  if(video.end)query.set("end",String(video.end));
+  return `https://www.youtube-nocookie.com/embed/${video.id}?${query}`;
+}
 function microVideoMarkup(video){const first=video.slides[0];return `<div class="micro-video" data-micro-video data-course="${video.courseId}" data-lesson="${video.lessonIndex}" role="region" aria-label="Microaula: ${escapeHtml(video.title)}"><div class="micro-video-stage"><span class="micro-video-symbol">&lt;/&gt;</span><div class="micro-video-copy"><small data-micro-eyebrow>${escapeHtml(first.eyebrow)}</small><h4 data-micro-title>${escapeHtml(first.title)}</h4><p data-micro-caption aria-live="polite">${escapeHtml(first.text)}</p></div><span class="micro-video-count" data-micro-count>1/${video.slides.length}</span></div><div class="micro-video-controls"><button type="button" data-micro-toggle aria-label="Reproduzir microaula">▶ Reproduzir</button><div class="micro-video-track"><i data-micro-progress></i></div><time data-micro-time>00:00 / 01:00</time><button type="button" data-micro-speak>🔊 Ouvir</button></div><details class="video-transcript"><summary>Transcrição e legenda completa</summary><p>${escapeHtml(video.transcript)}</p></details></div>`}
 let activeMicroVideoTimer=null;
 function activateMicroVideos(root=document){$$('[data-micro-video]',root).forEach(player=>{const video=lessonVideoData(courseById(player.dataset.course),Number(player.dataset.lesson),"short"),toggle=$("[data-micro-toggle]",player),speak=$("[data-micro-speak]",player);let elapsed=0,running=false;const time=value=>`${String(Math.floor(value/60)).padStart(2,"0")}:${String(value%60).padStart(2,"0")}`;const paint=()=>{const slideIndex=Math.min(video.slides.length-1,Math.floor(elapsed/(video.durationSeconds/video.slides.length))),slide=video.slides[slideIndex];$("[data-micro-eyebrow]",player).textContent=slide.eyebrow;$("[data-micro-title]",player).textContent=slide.title;$("[data-micro-caption]",player).textContent=slide.text;$("[data-micro-count]",player).textContent=`${slideIndex+1}/${video.slides.length}`;$("[data-micro-progress]",player).style.width=`${elapsed/video.durationSeconds*100}%`;$("[data-micro-time]",player).textContent=`${time(elapsed)} / ${time(video.durationSeconds)}`};const stop=()=>{running=false;clearInterval(activeMicroVideoTimer);toggle.textContent=elapsed>=video.durationSeconds?"↻ Rever":"▶ Continuar";toggle.setAttribute("aria-label",elapsed>=video.durationSeconds?"Rever microaula":"Continuar microaula")};toggle.onclick=()=>{if(running){stop();return}if(elapsed>=video.durationSeconds)elapsed=0;clearInterval(activeMicroVideoTimer);running=true;toggle.textContent="Ⅱ Pausar";activeMicroVideoTimer=setInterval(()=>{elapsed++;paint();if(elapsed>=video.durationSeconds)stop()},1000)};speak.onclick=()=>{if(!("speechSynthesis" in window)){showToast("Leitura por voz indisponível");return}speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(video.transcript);utterance.lang="pt-BR";utterance.rate=.95;speechSynthesis.speak(utterance);showToast("Transcrição sendo lida")};paint()})}
@@ -486,22 +492,39 @@ function openActivityLegacy(course,index,code){state.activity={courseId:course.i
 
 function visibleVideos(){const term=state.videoSearch.trim().toLowerCase();return videoCatalog.map((item,index)=>{const course=courseById(item.courseId),video=lessonVideoData(course,item.lessonIndex,state.videoLength);return {...item,...video,index,course,title:lessonTitle(course,item.lessonIndex),description:`${state.videoLength==="short"?"Microaula exclusiva com legenda":"Curso completo alternativo"} ${item.lessonIndex+1}: conceito, exemplo e prática de ${lessonTitle(course,item.lessonIndex)}.`}}).filter(item=>(state.videoCategory==="Todas"||item.category===state.videoCategory)&&(state.videoCourse==="Todas"||item.courseId===state.videoCourse)&&(!term||`${item.course.name} ${item.title} ${item.description}`.toLowerCase().includes(term)))}
 function renderVideoFilters(){const categories=["Todas","Web","Sistemas","Aplicações","Hardware"];$("#videoFilters").innerHTML=categories.map(item=>`<button class="${state.videoCategory===item?"active":""}" data-video-category="${item}">${item}</button>`).join("");$$('[data-video-category]').forEach(button=>button.addEventListener("click",()=>{state.videoCategory=button.dataset.videoCategory;const first=visibleVideos()[0];if(first)state.currentVideo=first.index;renderVideos()}))}
-function renderVideos(){
+function renderVideos({autoplay=false}={}){
   renderVideoFilters();
   $$('[data-video-length]').forEach(button=>button.classList.toggle("active",button.dataset.videoLength===state.videoLength));
   if($("#videoCourseSelect").options.length===1)$("#videoCourseSelect").insertAdjacentHTML("beforeend",courseBlueprints.map(course=>`<option value="${course.id}">${course.name}</option>`).join(""));
   $("#videoCourseSelect").value=state.videoCourse;$("#videoSearch").value=state.videoSearch;
   const visible=visibleVideos();if(visible.length&&!visible.some(item=>item.index===state.currentVideo))state.currentVideo=visible[0].index;
   const base=videoCatalog[state.currentVideo]||videoCatalog[0],course=courseById(base.courseId),video=lessonVideoData(course,base.lessonIndex,state.videoLength),current={...base,...video,title:lessonTitle(course,base.lessonIndex)};
-  const playerFrame=$(".player-frame");playerFrame.innerHTML='<iframe id="videoFrame" title="Videoaula selecionada" loading="lazy" allowfullscreen></iframe><div class="video-placeholder" id="videoPlaceholder"><button id="loadVideo">▶</button><span>Carregar videoaula</span></div>';
+  const playerFrame=$(".player-frame");playerFrame.innerHTML='<iframe id="videoFrame" title="Videoaula selecionada" loading="eager" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-placeholder" id="videoPlaceholder"><button id="loadVideo" type="button" aria-label="Reproduzir videoaula">▶</button><span>Carregar videoaula</span></div>';
+  $("#videoFrame").title=`Videoaula: ${current.title}`;
   $("#videoPlaceholder span").textContent=state.videoLength==="short"?"Reproduzir trecho real da videoaula":"Carregar videoaula completa";
   $("#videoResultCount").textContent=`${visible.length} ${visible.length===1?"aula":"aulas"}`;$("#videoCatalogCount").textContent=videoCatalog.length;
   const deep=lessonDeepDiveData(course,current.lessonIndex);$("#videoLearningStrip").innerHTML=`<div><small>ANTES</small><strong>Ative o conhecimento</strong><p>${escapeHtml(current.note)}</p></div><div><small>DURANTE</small><strong>Procure o conceito</strong><p>Identifique onde “${escapeHtml(current.title)}” aparece no exemplo.</p></div><div><small>DEPOIS</small><strong>Pratique imediatamente</strong><p>${escapeHtml(deep.checkpoint)}</p></div>`;
-  $("#playerInfo").innerHTML=`<div class="player-copy"><small>${escapeHtml(course.name.toUpperCase())} • AULA ${String(current.lessonIndex+1).padStart(2,"0")}</small><strong>${escapeHtml(current.title)}</strong><p>${escapeHtml(current.description)}</p></div><div class="player-actions"><span>${escapeHtml(current.label)} • ${current.minutes} MIN</span><button id="openVideoLesson">Abrir aula e atividade →</button><a href="${escapeHtml(current.url)}" target="_blank" rel="noopener noreferrer">Ver fonte completa ↗</a></div>`;
+  $("#playerInfo").innerHTML=`<div class="player-copy"><small>${escapeHtml(course.name.toUpperCase())} • AULA ${String(current.lessonIndex+1).padStart(2,"0")}</small><strong>${escapeHtml(current.title)}</strong><p>${escapeHtml(current.description)}</p><p id="videoPlaybackHelp" role="status" hidden>Se o vídeo não iniciar, toque em ▶ no player. Se aparecer um bloqueio do YouTube, use o link para abrir o vídeo em outra aba.</p></div><div class="player-actions"><span>${escapeHtml(current.label)} • ${current.minutes} MIN</span><button id="openVideoLesson">Abrir aula e atividade →</button><button id="retryVideo" type="button" hidden>↻ Recarregar vídeo</button><a href="${escapeHtml(current.url)}" target="_blank" rel="noopener noreferrer">${state.videoLength==="short"?"Abrir trecho no YouTube":"Abrir no YouTube"} ↗</a></div>`;
   $("#videoQueue").innerHTML=visible.length?visible.map(item=>`<button class="${item.index===state.currentVideo?"active":""}" data-video="${item.index}"><span>${String(item.lessonIndex+1).padStart(2,"0")}</span><span><strong>${escapeHtml(item.course.name)}: ${escapeHtml(item.title)}</strong><small>${escapeHtml(item.label.toLowerCase())} • ${item.minutes} min • Aula ${item.lessonIndex+1} de 7</small></span><i>▶</i></button>`).join(""):`<div class="video-empty"><b>Nenhuma videoaula encontrada</b><span>Altere a busca ou os filtros.</span></div>`;
-  $$('[data-video]').forEach(button=>button.addEventListener("click",()=>{state.currentVideo=Number(button.dataset.video);renderVideos()}));
-  $("#loadVideo").onclick=()=>{if(current.kind==="micro"){playerFrame.innerHTML=microVideoMarkup(current);activateMicroVideos(playerFrame)}else{$("#videoFrame").src=youtubeEmbedUrl(current);$("#videoPlaceholder").hidden=true}trackLearningEvent("video_aberto",{courseId:current.courseId,lesson:current.lessonIndex,title:current.title,mode:state.videoLength})};
+  const playSelectedVideo=()=>{
+    if(current.kind==="micro"){
+      playerFrame.innerHTML=microVideoMarkup(current);activateMicroVideos(playerFrame);
+    }else{
+      $("#videoFrame").src=youtubeEmbedUrl(current,{autoplay:true});
+      $("#videoPlaceholder").hidden=true;
+      $("#retryVideo").hidden=false;
+      $("#videoPlaybackHelp").hidden=false;
+    }
+    trackLearningEvent("video_aberto",{courseId:current.courseId,lesson:current.lessonIndex,title:current.title,mode:state.videoLength});
+  };
+  $$("[data-video]",$("#videoQueue")).forEach(button=>button.addEventListener("click",()=>{
+    state.currentVideo=Number(button.dataset.video);
+    renderVideos({autoplay:true});
+  }));
+  $("#loadVideo").onclick=playSelectedVideo;
+  $("#retryVideo").onclick=playSelectedVideo;
   $("#openVideoLesson").onclick=()=>openCourse(current.courseId,current.lessonIndex);
+  if(autoplay)playSelectedVideo();
 }
 
 function languageOptions(){return courseBlueprints.map(course=>`<option value="${course.id}" ${state.labLanguage===course.id?"selected":""}>${course.name}</option>`).join("")}

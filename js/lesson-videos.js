@@ -27,8 +27,8 @@
   function get(courseId, lessonIndex, mode = "short") {
     const source = sourceByCourse[courseId] || sourceByCourse.html;
     const lesson = Math.max(0, Math.min(6, Number(lessonIndex) || 0));
-    const start = lesson * source.step;
     const short = mode !== "full";
+    const start = short ? lesson * source.step : 0;
     return {
       id: source.id,
       start,
