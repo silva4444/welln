@@ -22,6 +22,7 @@ function player() {
     this.markup = markup;
     const iframe = node();
     iframe.navigations = [];
+    iframe.getAttribute = key => key === "src" ? iframe.src : null;
     Object.defineProperty(iframe, "src", { get() { return this.navigations.at(-1); }, set(url) { this.navigations.push(url); } });
     elements.set("#videoFrame", iframe);
     elements.set("#videoPlaceholder", node());
@@ -112,4 +113,13 @@ test("as 98 aulas conservam seus recortes; modo completo começa do início sem 
       assert.equal(full.id, short.id);
     }
   }
+});
+
+test("sincronização do conteúdo mantém o player em reprodução", () => {
+  const { get, queue, sandbox } = player();
+  queue[1].click();
+  const playing = get("#videoFrame");
+  sandbox.renderVideos({preservePlayback:true});
+  assert.equal(get("#videoFrame"), playing);
+  assert.equal(playing.navigations.length, 1);
 });

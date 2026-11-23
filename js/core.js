@@ -492,14 +492,17 @@ function openActivityLegacy(course,index,code){state.activity={courseId:course.i
 
 function visibleVideos(){const term=state.videoSearch.trim().toLowerCase();return videoCatalog.map((item,index)=>{const course=courseById(item.courseId),video=lessonVideoData(course,item.lessonIndex,state.videoLength);return {...item,...video,index,course,title:lessonTitle(course,item.lessonIndex),description:`${state.videoLength==="short"?"Microaula exclusiva com legenda":"Curso completo alternativo"} ${item.lessonIndex+1}: conceito, exemplo e prática de ${lessonTitle(course,item.lessonIndex)}.`}}).filter(item=>(state.videoCategory==="Todas"||item.category===state.videoCategory)&&(state.videoCourse==="Todas"||item.courseId===state.videoCourse)&&(!term||`${item.course.name} ${item.title} ${item.description}`.toLowerCase().includes(term)))}
 function renderVideoFilters(){const categories=["Todas","Web","Sistemas","Aplicações","Hardware"];$("#videoFilters").innerHTML=categories.map(item=>`<button class="${state.videoCategory===item?"active":""}" data-video-category="${item}">${item}</button>`).join("");$$('[data-video-category]').forEach(button=>button.addEventListener("click",()=>{state.videoCategory=button.dataset.videoCategory;const first=visibleVideos()[0];if(first)state.currentVideo=first.index;renderVideos()}))}
-function renderVideos({autoplay=false}={}){
+function renderVideos({autoplay=false,preservePlayback=false}={}){
   renderVideoFilters();
   $$('[data-video-length]').forEach(button=>button.classList.toggle("active",button.dataset.videoLength===state.videoLength));
   if($("#videoCourseSelect").options.length===1)$("#videoCourseSelect").insertAdjacentHTML("beforeend",courseBlueprints.map(course=>`<option value="${course.id}">${course.name}</option>`).join(""));
   $("#videoCourseSelect").value=state.videoCourse;$("#videoSearch").value=state.videoSearch;
   const visible=visibleVideos();if(visible.length&&!visible.some(item=>item.index===state.currentVideo))state.currentVideo=visible[0].index;
   const base=videoCatalog[state.currentVideo]||videoCatalog[0],course=courseById(base.courseId),video=lessonVideoData(course,base.lessonIndex,state.videoLength),current={...base,...video,title:lessonTitle(course,base.lessonIndex)};
-  const playerFrame=$(".player-frame");playerFrame.innerHTML='<iframe id="videoFrame" title="Videoaula selecionada" loading="eager" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-placeholder" id="videoPlaceholder"><button id="loadVideo" type="button" aria-label="Reproduzir videoaula">▶</button><span>Carregar videoaula</span></div>';
+  const playerFrame=$(".player-frame");
+  const activeFrame=$("#videoFrame");
+  if(preservePlayback && activeFrame?.getAttribute("src")===youtubeEmbedUrl(current,{autoplay:true}))return;
+  playerFrame.innerHTML='<iframe id="videoFrame" title="Videoaula selecionada" loading="eager" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="video-placeholder" id="videoPlaceholder"><button id="loadVideo" type="button" aria-label="Reproduzir videoaula">▶</button><span>Carregar videoaula</span></div>';
   $("#videoFrame").title=`Videoaula: ${current.title}`;
   $("#videoPlaceholder span").textContent=state.videoLength==="short"?"Reproduzir trecho real da videoaula":"Carregar videoaula completa";
   $("#videoResultCount").textContent=`${visible.length} ${visible.length===1?"aula":"aulas"}`;$("#videoCatalogCount").textContent=videoCatalog.length;
@@ -1598,7 +1601,7 @@ window.CodaCore={
     if(!appDatabase)return;
     (payload.lessons||[]).forEach(row=>{const content={courseId:row.course_id,lesson:Number(row.lesson_index),title:row.title,status:row.status,context:row.context,explanation:row.explanation,system:row.system_example,commonError:row.common_error,activity:row.activity,objectives:row.objectives||[],prerequisites:row.prerequisites||[],checkpoints:row.checkpoints||[],updatedAt:row.updated_at};const index=appDatabase.conteudos.findIndex(item=>item.courseId===content.courseId&&Number(item.lesson)===content.lesson);if(index>=0)appDatabase.conteudos[index]=content;else appDatabase.conteudos.push(content);if(row.video_url){const video={courseId:row.course_id,lesson:Number(row.lesson_index),url:row.video_url,note:row.video_note,updatedAt:row.updated_at},videoIndex=appDatabase.videos.findIndex(item=>item.courseId===video.courseId&&Number(item.lesson)===video.lesson);if(videoIndex>=0)appDatabase.videos[videoIndex]=video;else appDatabase.videos.push(video)}});
     (payload.materials||[]).forEach(row=>{if(appDatabase.recursos.some(item=>String(item.serverId)===String(row.id)))return;appDatabase.recursos.push({serverId:row.id,id:`server-resource-${row.id}`,courseId:row.course_id,lesson:Number(row.lesson_index),type:row.material_type,author:row.author,title:row.title,url:row.url,note:row.note,status:row.status,createdAt:row.created_at})});
-    renderCourses();renderVideos();if($("#curso").classList.contains("active"))renderCourse();if(state.student?.role==="Professor")renderTeacherArea();
+    renderCourses();renderVideos({preservePlayback:true});if($("#curso").classList.contains("active"))renderCourse();if(state.student?.role==="Professor")renderTeacherArea();
   },
   applyServerChallenges(rows=[]){
     if(!appDatabase)return;
