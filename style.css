@@ -731,3 +731,109 @@ html[data-theme="light"] body.high-contrast {
     border:1.5px solid var(--line-soft);
   }
 }
+
+
+/* CODA 14.8.3 — identidade oficial nos controles, sem alterar sua lógica. */
+html[data-theme] .sidebar .brand-icon.coda-logo-icon,
+html[data-theme] body.is-admin .sidebar .brand-icon.coda-logo-icon,
+html[data-theme] body.is-teacher .sidebar .brand-icon.coda-logo-icon {
+  display:grid;
+  place-items:center;
+  width:44px;
+  height:44px;
+  flex:0 0 44px;
+  padding:0;
+  border:1px solid var(--line-soft);
+  border-radius:12px;
+  background:#eae6f6;
+  overflow:hidden;
+  box-shadow:none;
+}
+html[data-theme] .coda-logo-icon img,
+html[data-theme] .coda-tutor-mark img {
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center;
+}
+html[data-theme] .chat-button.coda-chat-logo-button {
+  width:60px;
+  min-width:60px;
+  height:60px;
+  min-height:60px;
+  right:clamp(12px,2vw,24px);
+  bottom:22px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:6px;
+  border:1px solid var(--line);
+  border-radius:50%;
+  background:var(--surface);
+  box-shadow:var(--shadow);
+}
+html[data-theme] .chat-button.coda-chat-logo-button .coda-tutor-mark {
+  display:block;
+  width:46px;
+  height:46px;
+  flex:0 0 46px;
+  padding:0;
+  border-radius:50%;
+  overflow:hidden;
+  background:#eae6f6;
+}
+html[data-theme] .chat-button.coda-chat-logo-button>i {
+  position:absolute;
+  right:3px;
+  bottom:4px;
+  width:10px;
+  height:10px;
+  border:2px solid var(--surface);
+  border-radius:50%;
+  background:#3cbd78;
+}
+html[data-theme] .tutor-chat header>span.coda-tutor-mark {
+  width:42px;
+  height:42px;
+  flex:0 0 42px;
+  display:block;
+  padding:0;
+  border-radius:11px;
+  overflow:hidden;
+  background:#eae6f6;
+}
+html[data-theme] .tutor-chat header>div:has(#chatStatus) {
+  min-width:0;
+  flex:1 1 auto;
+}
+html[data-theme] .tutor-chat #chatStatus {
+  line-height:1.4;
+  overflow-wrap:anywhere;
+}
+.coda-sr-only {
+  position:absolute!important;
+  width:1px!important;
+  height:1px!important;
+  padding:0!important;
+  margin:-1px!important;
+  overflow:hidden!important;
+  clip:rect(0,0,0,0)!important;
+  white-space:nowrap!important;
+  border:0!important;
+}
+@media(max-width:600px) {
+  html[data-theme] .chat-button.coda-chat-logo-button {
+    width:54px;
+    min-width:54px;
+    height:54px;
+    min-height:54px;
+    bottom:calc(84px + env(safe-area-inset-bottom));
+    padding:5px;
+  }
+  html[data-theme] .chat-button.coda-chat-logo-button .coda-tutor-mark {
+    width:42px;
+    height:42px;
+    flex-basis:42px;
+  }
+}

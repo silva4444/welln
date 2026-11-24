@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://vlibras.gov.br" crossorigin>
   <link rel="dns-prefetch" href="//vlibras.gov.br">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap">
-  <link rel="stylesheet" href="style.css?v=14.8.2">
+  <link rel="stylesheet" href="style.css?v=14.8.3">
   <script src="js/device-mode.js?v=14.8.0"></script>
   <link rel="stylesheet" href="components/esp32-reference.css?v=14.3.0">
 </head>
@@ -81,7 +81,7 @@
 
   <div class="app-shell is-locked" id="appShell">
     <aside class="sidebar" id="sidebar">
-      <button class="brand" data-view="inicio" aria-label="Ir ao início"><span class="brand-icon">C</span><span><strong>coda</strong><small>ESCOLA DE TECNOLOGIA</small></span></button>
+      <button class="brand" data-view="inicio" aria-label="Ir ao início"><span class="brand-icon coda-logo-icon"><img src="assets/coda-logo.webp" alt="" width="44" height="44" decoding="async"></span><span><strong>coda</strong><small>ESCOLA DE TECNOLOGIA</small></span></button>
       <nav class="nav student-navigation" aria-label="Navegação do aluno">
         <button class="active" data-view="inicio" data-icon="home"><i></i><span>Início</span></button>
         <button data-view="materias" data-icon="book"><i></i><span>Aprender</span></button>
@@ -542,7 +542,7 @@
     </main>
 
     <nav class="mobile-nav" id="mobileNav" aria-label="Navegação rápida no celular"></nav>
-    <button class="chat-button student-interface" id="chatButton" aria-label="Abrir Tutor Coda"><span>TC</span><b>Tutor Coda</b><i></i></button>
+    <button class="chat-button coda-chat-logo-button student-interface" id="chatButton" aria-label="Abrir Tutor CODA" title="Abrir tutor"><span class="coda-tutor-mark"><img src="assets/coda-logo.webp" alt="" width="44" height="44" decoding="async"></span><i aria-hidden="true"></i></button>
     <aside class="accessibility-panel" id="accessibilityPanel" aria-label="Preferências de acessibilidade" hidden>
       <header><div><small>ACESSIBILIDADE</small><strong>Personalize todo o site</strong></div><button id="closeAccessibility" aria-label="Fechar">×</button></header>
       <div class="accessibility-group"><span>Tamanho de todas as letras</span><div class="font-size-options"><button data-font-size="normal">100%</button><button data-font-size="large">115%</button><button data-font-size="xlarge">130%</button></div></div>
@@ -555,7 +555,7 @@
       <p class="accessibility-hint">Atalhos: Ctrl + K busca, Esc fecha painéis. O Widget oficial do VLibras aparece no canto inferior direito quando houver internet. <a href="https://www.gov.br/governodigital/pt-br/acessibilidade-e-usuario/vlibras" target="_blank" rel="noopener noreferrer">Conheça o VLibras no portal GOV.BR</a>.</p>
     </aside>
     <aside class="chat tutor-chat student-interface" id="chat" aria-label="Tutor Coda">
-      <header><span>TC</span><div><strong>Tutor Coda</strong><small id="chatStatus"><i></i> Base local + artigos científicos</small></div><div class="chat-header-actions"><button id="chatHistoryButton" type="button" aria-label="Abrir histórico" title="Histórico">☷</button><button id="newChatButton" type="button" aria-label="Nova conversa" title="Nova conversa">＋</button><button id="closeChat" type="button" aria-label="Fechar">×</button></div></header>
+      <header><span class="coda-tutor-mark"><img src="assets/coda-logo.webp" alt="" width="40" height="40" decoding="async"></span><div><strong class="coda-sr-only">Tutor CODA</strong><small id="chatStatus"><i></i> Base local + artigos científicos</small></div><div class="chat-header-actions"><button id="chatHistoryButton" type="button" aria-label="Abrir histórico" title="Histórico">☷</button><button id="newChatButton" type="button" aria-label="Nova conversa" title="Nova conversa">＋</button><button id="closeChat" type="button" aria-label="Fechar">×</button></div></header>
       <section class="chat-history" id="chatHistory" hidden><div><strong>Suas conversas</strong><button id="closeChatHistory" type="button">Voltar</button></div><div id="chatConversationList"></div></section>
       <div class="chat-modes" id="chatModes" aria-label="Modo do tutor"><button class="active" type="button" data-chat-mode="explain"><b>Explicar</b><span>Entender a aula</span></button><button type="button" data-chat-mode="hint"><b>Dar dica</b><span>Sem entregar</span></button><button type="button" data-chat-mode="code"><b>Código</b><span>Revisar erros</span></button><button type="button" data-chat-mode="quiz"><b>Revisão</b><span>Testar conhecimento</span></button><button type="button" data-chat-mode="research"><b>Artigos</b><span>Buscar evidências</span></button></div>
       <p class="chat-mode-hint" id="chatModeHint">Explicação clara usando a aula atual e o seu progresso.</p>
