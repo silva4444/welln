@@ -1,9 +1,30 @@
 (() => {
   "use strict";
 
-  // Inicia sempre no tema claro, inclusive antes da tela de login aparecer.
-  document.documentElement.dataset.theme = "light";
-  try { localStorage.setItem("nexo-theme", "light"); } catch {}
+  // Restaura a preferência escolhida; o padrão na primeira visita é claro.
+  let savedTheme = "light";
+  try { savedTheme = localStorage.getItem("nexo-theme") === "dark" ? "dark" : "light"; } catch {}
+  document.documentElement.dataset.theme = savedTheme;
+
+  function applyTheme(next, { persist = true } = {}) {
+    const theme = next === "dark" ? "dark" : "light";
+    document.documentElement.dataset.theme = theme;
+    if (persist) { try { localStorage.setItem("nexo-theme", theme); } catch {} }
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", theme === "dark" ? "#090b0a" : "#ffffff");
+    document.querySelectorAll("[data-theme-switch],#themeToggle").forEach(button => {
+      const nextLabel = theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro";
+      button.setAttribute("aria-label", nextLabel);
+      button.setAttribute("title", nextLabel);
+      button.setAttribute("aria-pressed", String(theme === "dark"));
+      if (button.hasAttribute("data-theme-switch")) button.textContent = theme === "dark" ? "☀ Tema claro" : "☾ Tema escuro";
+    });
+  }
+  window.CodaTheme = { apply: applyTheme, current: () => document.documentElement.dataset.theme };
+  document.addEventListener("click", event => {
+    const button = event.target.closest?.("[data-theme-switch]");
+    if (button) applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+  });
 
   const STORAGE_KEY = "coda_device_mode";
   const MODES = new Set(["mobile", "desktop"]);
@@ -89,6 +110,7 @@
   if (mode) apply(mode, { persist: Boolean(stored || query) });
 
   document.addEventListener("DOMContentLoaded", () => {
+    applyTheme(document.documentElement.dataset.theme, { persist: false });
     if (!mode) buildChooser();
     else resolveReady?.(mode);
     addSwitcher();

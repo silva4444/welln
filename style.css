@@ -143,3 +143,242 @@ html[data-theme] :is(.primary,.secondary,.subnav button,.nav button,.lt-tabs but
   outline:3px solid var(--role-accent);outline-offset:2px
 }
 /* Editores e visualizadores 3D conservam o contraste técnico necessário. */
+
+
+/* CODA 14.8 — acabamentos consistentes para todas as telas.
+   As superfícies de WebGL/IDE não são clareadas artificialmente. */
+html[data-theme="light"][data-color-vision="default"] {
+  --brand:#6334bb;--green:#6334bb;--lime:#6334bb;--lime-dark:#51259b;--focus:#6334bb;
+}
+html[data-theme="dark"][data-color-vision="default"] {
+  --brand:#39d98a;--green:#39d98a;--lime:#39d98a;--lime-dark:#27bc71;--focus:#39d98a;
+}
+html[data-theme] {
+  --ui-radius:18px;
+  accent-color:var(--role-accent);
+}
+html[data-theme] body {
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+html[data-theme] :is(.content,.page-content,.main,.view,.teacher-workspace,.admin-workspace,.student-platform-grid) {
+  min-width:0;
+}
+html[data-theme] :is(.page-heading h1,.hero h1,.about-landing h1,.section-title h2) {
+  letter-spacing:-.035em;
+  overflow-wrap:break-word;
+}
+html[data-theme] :is(.page-heading p,.section-title p,.learning-card p,.platform-card p,.admin-card p,.teacher-editor p,.about-landing p) {
+  line-height:1.65;
+}
+html[data-theme] :is(.topbar,.sidebar,.learning-card,.platform-card,.course-card,.teacher-editor,.admin-card,
+  .lesson-reader,.esp-panel,.three-d-programmer,.account-dialog-card,.about-landing-highlights article) {
+  border-color:var(--line-soft);
+}
+html[data-theme] :is(.platform-card,.learning-card,.course-card,.teacher-editor,.admin-card,.student-review-panel,.esp-panel) {
+  border-radius:var(--ui-radius);
+}
+html[data-theme] :is(input,select,textarea,.account-dialog-fields input) {
+  min-height:44px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--surface-2);
+  color:var(--text);
+  transition:border-color .16s ease,box-shadow .16s ease;
+}
+html[data-theme] :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea):focus-visible {
+  border-color:var(--role-accent);
+  outline:2px solid var(--role-accent);
+  outline-offset:1px;
+}
+html[data-theme] :is(button,a,input,textarea,select,[tabindex]):focus-visible {
+  outline:3px solid var(--focus,var(--role-accent));
+  outline-offset:3px;
+}
+html[data-theme] :is(button,.primary,.secondary,.link-button) {
+  touch-action:manipulation;
+}
+html[data-theme] :is(.primary,.secondary,.link-button,.about-landing-login,.account-dialog-card button) {
+  border-radius:12px;
+  font-weight:800;
+}
+html[data-theme] :is(.primary,.about-landing-login,.login-screen .login-card .primary):not(:disabled):active {
+  transform:translateY(1px);
+}
+html[data-theme] :is(.topbar .theme-toggle,.topbar .menu-button,.topbar .notification-button,.accessibility-button,.sidebar .theme-toggle) {
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:var(--surface-2);
+  color:var(--text);
+}
+html[data-theme] .sidebar .theme-toggle {display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px}
+html[data-theme] .sidebar .nav button {min-height:46px}
+html[data-theme] :is(.sidebar .nav button,.subnav button,.lt-tabs button,.mobile-nav button) {
+  transition:background-color .16s ease,color .16s ease,border-color .16s ease;
+}
+html[data-theme] :is(.subnav button.active,.lt-tabs button.active,.sidebar .nav button.active) {
+  font-weight:800;
+}
+html[data-theme] :is(.account-dialog-card,.accessibility-panel,.notification-panel,.menu-panel) {
+  background:var(--surface);
+  color:var(--text);
+  border-color:var(--line);
+  box-shadow:var(--shadow);
+}
+html[data-theme] .account-dialog-back {backdrop-filter:blur(5px)}
+html[data-theme] .account-dialog-fields label {color:var(--text)}
+html[data-theme] .account-dialog-card>footer {background:var(--surface-2)}
+html[data-theme] .xr-experience-picker button {border-radius:15px;padding:14px;min-height:82px}
+html[data-theme] .xr-experience-picker button.active {
+  border-color:var(--role-accent);
+  box-shadow:inset 4px 0 var(--role-accent);
+}
+html[data-theme] .xr-experience-picker button:focus-visible {outline-offset:3px}
+
+/* Acesso ao tema antes e depois do login, sem abrir configurações. */
+.coda-theme-inline {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:44px;
+  padding:10px 15px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--surface);
+  color:var(--text);
+  font:800 .82rem Manrope,system-ui,sans-serif;
+  white-space:nowrap;
+  cursor:pointer;
+  box-shadow:0 4px 18px color-mix(in srgb,var(--text) 7%,transparent);
+}
+.coda-theme-inline:hover {border-color:var(--role-accent);color:var(--role-accent);background:var(--surface-2)}
+.login-panel .login-theme-switch {
+  align-self:flex-end;
+  margin:0 0 12px auto;
+}
+html[data-theme="light"] .about-landing {
+  background:radial-gradient(circle at 82% 15%,#f1eaff 0,transparent 34%),#ffffff;
+}
+html[data-theme="light"] :is(.about-landing-highlights article,.about-landing-eyebrow,.account-dialog-card,.accessibility-panel) {
+  background:#fff;color:#211533;
+  border-color:#e5daf5;
+}
+html[data-theme="light"] .about-landing-login {
+  background:#6334bb;color:#fff;
+}
+html[data-theme="light"] .about-landing-login:hover {background:#51259b}
+html[data-theme="light"] .about-landing-highlights article:hover,
+html[data-theme="light"] :is(.course-card,.learning-card,.platform-card):hover {
+  border-color:#c9afea;
+}
+html[data-theme="light"] :is(.accessibility-panel,.account-dialog-card) input {
+  background:#fff;color:#211533;
+}
+html[data-theme="light"] .sidebar .brand-icon,
+html[data-theme="light"] body.is-admin .brand-icon {
+  background:#6334bb;color:#fff;
+}
+html[data-theme="light"] :is(.admin-badge,.institution-pill,.admin-view .admin-user-row>span) {
+  background:#eee6fb;color:#4f258d;
+}
+html[data-theme="light"] :is(.admin-request-row button:first-child,.account-dialog-card>footer .primary) {
+  background:#6334bb;border-color:#6334bb;color:#fff;
+}
+html[data-theme="light"] :is(.menu-button,.notification-button,.accessibility-button,.theme-toggle,.sidebar-utility button) {
+  background:#f7f3ff;color:#342045;border-color:#dfd2f1;
+}
+html[data-theme="light"] .mobile-nav {
+  background:rgba(255,255,255,.96);
+  border-color:#e4d9f3;
+  box-shadow:0 -8px 28px rgba(73,35,120,.10);
+}
+html[data-theme="light"] .mobile-nav button.active {background:#f0e8ff;color:#51259b}
+html[data-theme="light"] .login-panel .login-theme-switch {background:#f6f1ff;color:#4f258d}
+html[data-theme="light"] .login-screen .login-card .login-error {background:#fff1f4;color:#9a2141;border-color:#d6899d}
+html[data-theme="light"] :is(.topbar .search,.topbar .search input,.login-card input:not([type="checkbox"])) {
+  background:#fff;color:#211533
+}
+
+/* Tema noturno realmente preto: sombras discretas, superfícies elevadas verdes. */
+html[data-theme="dark"] .about-landing {
+  background:radial-gradient(circle at 83% 15%,#163322 0,transparent 32%),#090b0a;
+}
+html[data-theme="dark"] :is(.about-landing-highlights article,.about-landing-eyebrow,.account-dialog-card,.accessibility-panel) {
+  background:#111713;color:#edf9f0;border-color:#304538;
+}
+html[data-theme="dark"] .about-landing-login,
+html[data-theme="dark"] :is(.account-dialog-card>footer .primary,.admin-request-row button:first-child) {
+  background:#1d7548;border-color:#289d61;color:#fff;
+}
+html[data-theme="dark"] .about-landing-login:hover {background:#267c51}
+html[data-theme="dark"] .about-landing .about-landing-mark,
+html[data-theme="dark"] body.is-admin .brand-icon,
+html[data-theme="dark"] .sidebar .brand-icon {
+  background:#1d7548;color:#fff;
+}
+html[data-theme="dark"] :is(.admin-badge,.institution-pill,.admin-view .admin-user-row>span) {
+  background:#203828;color:#aaf4c5;
+}
+html[data-theme="dark"] :is(.sidebar,.topbar,.mobile-nav) {
+  background:#0e1510;color:#edf9f0;border-color:#304538;
+}
+html[data-theme="dark"] .mobile-nav {box-shadow:0 -8px 28px rgba(0,0,0,.42)}
+html[data-theme="dark"] .mobile-nav button.active {background:#1c3928;color:#c6f7d7}
+html[data-theme="dark"] :is(.sidebar .profile,.topbar .search,.admin-user-row,.admin-request-row,.platform-list-item) {
+  background:#17221b;color:#edf9f0;border-color:#304538;
+}
+html[data-theme="dark"] :is(.menu-button,.notification-button,.accessibility-button,.theme-toggle,.sidebar-utility button) {
+  background:#1b2a20;color:#e6f8eb;border-color:#38533f;
+}
+html[data-theme="dark"] :is(.sidebar .nav button.active,.subnav button.active,.lt-tabs button.active,.primary,.login-screen .login-card .primary) {
+  background:#1d7548;border-color:#289d61;color:#fff;
+}
+html[data-theme="dark"] .login-screen .login-visual .eyebrow,
+html[data-theme="dark"] .login-screen .login-features span {color:#edfff4!important}
+html[data-theme="dark"] .login-panel .login-theme-switch {
+  background:#1a2920;color:#c1f8d5;border-color:#3b6149;
+}
+html[data-theme="dark"] :is(.login-screen .login-card .login-kicker,.login-screen .login-accessibility) {color:#76e9a8}
+html[data-theme="dark"] :is(.login-screen .login-card .portal-switch button.active,.login-screen .login-card .login-mode-switch button.active) {
+  background:#1d7548;color:#fff;
+}
+html[data-theme="dark"] :is(.login-screen .login-card input:not([type="checkbox"]),.account-dialog-card input) {
+  background:#18251c;color:#f4fff6;border-color:#42654c;
+}
+html[data-theme="dark"] :is(input,textarea)::placeholder {color:#a8beaE}
+html[data-theme="dark"] .vr-preview-card {border-color:#2b6644}
+html[data-theme="dark"] .vr-preview-card>header {background:#0c1a12}
+html[data-theme="dark"] .vr-capability-badges span {border-color:#2d9860;background:#1b402b;color:#c1f9d4}
+
+/* Controles e texto no Quest Browser, tablet, celular e telas pequenas. */
+@media(max-width:900px) {
+  html[data-theme] :is(.about-landing-highlights,.student-competency-grid,.admin-grid,.teacher-management-grid)>* {min-width:0}
+  html[data-theme] :is(.topbar,.login-panel,.about-landing-header) {gap:12px}
+  html[data-theme] .mobile-nav button {min-height:56px}
+  html[data-theme] .login-screen .login-card {max-width:100%}
+  html[data-theme] .account-dialog-card {width:min(520px,100%)}
+}
+@media(max-width:600px) {
+  html[data-theme] .about-landing-shell {padding:20px 16px}
+  html[data-theme] .about-landing-header {align-items:flex-start}
+  html[data-theme] .about-landing-brand strong {font-size:1.4rem}
+  html[data-theme] .about-landing h1 {font-size:clamp(2rem,9vw,3rem);line-height:1.14}
+  html[data-theme] .about-landing-hero>p {font-size:1rem;line-height:1.65}
+  html[data-theme] .about-landing-login {width:100%}
+  html[data-theme] .login-panel .login-theme-switch {margin:0 0 8px auto}
+  html[data-theme] .login-card {border-radius:16px}
+  html[data-theme] .login-screen .portal-switch button {min-width:0;font-size:.78rem}
+  html[data-theme] :is(.page-heading h1,.section-title h2) {max-width:100%}
+  html[data-theme] .app-shell :is(.platform-card,.teacher-editor,.admin-card,.lesson-reader,.esp-panel) {padding:16px}
+  html[data-theme] .sidebar .theme-toggle {display:inline-flex}
+  html[data-theme] .mobile-nav {padding-bottom:env(safe-area-inset-bottom)}
+}
+@media(hover:hover) {
+  html[data-theme] :is(.platform-card,.learning-card,.course-card,.about-landing-highlights article) {
+    transition:border-color .18s ease,box-shadow .18s ease;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  html[data-theme] :is(.platform-card,.learning-card,.course-card,.about-landing-highlights article,
+    .coda-theme-inline,.primary,.secondary) {transition:none!important;animation:none!important}
+}

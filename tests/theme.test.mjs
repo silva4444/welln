@@ -50,3 +50,26 @@ test("tema claro preserva IDE escura, ESP32 legível e alto contraste correto", 
   assert.match(css, /\.esp-scene\{background:radial-gradient/);
   assert.match(css, /body\.high-contrast\{/);
 });
+
+test("identidade visual unificada: claro branco/roxo e escuro preto/verde", async () => {
+  const finalCSS = await readFile(new URL("style.css", root), "utf8");
+  assert.match(finalCSS, /--bg:#ffffff;--surface:#ffffff;/);
+  assert.match(finalCSS, /--brand:#6334bb;/);
+  assert.match(finalCSS, /--bg:#090b0a;--surface:#111713;/);
+  assert.match(finalCSS, /--brand:#39d98a;/);
+  assert.match(finalCSS, /\.about-landing/);
+  assert.match(finalCSS, /\.login-screen/);
+  assert.match(finalCSS, /\.mobile-nav/);
+  assert.match(finalCSS, /@media\(max-width:600px\)/);
+  assert.ok(contrast("#ffffff", "#6334bb") >= 4.5);
+  assert.ok(contrast("#ffffff", "#1d7548") >= 4.5);
+});
+
+test("tema selecionado continua após recarregar e existe na entrada pública", async () => {
+  const device = await readFile(new URL("js/device-mode.js",root),"utf8");
+  const core = await readFile(new URL("js/core.js",root),"utf8");
+  const html = await readFile(new URL("index.html",root),"utf8");
+  assert.match(device,/localStorage\.getItem\("nexo-theme"\)/);
+  assert.doesNotMatch(core,/async function init\(\)\{document\.documentElement\.dataset\.theme="light"/);
+  assert.equal((html.match(/data-theme-switch/g) || []).length,2);
+});
