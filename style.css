@@ -382,3 +382,205 @@ html[data-theme="dark"] .vr-capability-badges span {border-color:#2d9860;backgro
   html[data-theme] :is(.platform-card,.learning-card,.course-card,.about-landing-highlights article,
     .coda-theme-inline,.primary,.secondary) {transition:none!important;animation:none!important}
 }
+
+
+/* CODA 14.8.1 — tela inicial responsiva sem cortes */
+/* O menu lateral retrátil ocupa 72px; a área central deve usar o espaço restante. */
+@media(min-width:851px) {
+  html[data-theme] .app-shell:not(.is-locked) .main {
+    width:calc(100% - 72px);
+    max-width:calc(100% - 72px);
+    min-width:0;
+    margin-left:72px;
+  }
+}
+html[data-theme] .app-shell:not(.is-locked) .content {
+  width:100%;
+  max-width:1360px;
+  min-width:0;
+  margin-inline:auto;
+  padding-inline:clamp(18px,3vw,44px);
+}
+html[data-theme] #inicio,
+html[data-theme] #inicio .hero,
+html[data-theme] #inicio .hero > *,
+html[data-theme] #inicio .dashboard-row,
+html[data-theme] #inicio .dashboard-row > * {
+  min-width:0;
+  max-width:100%;
+}
+html[data-theme] #inicio .hero {
+  display:grid;
+  grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);
+  align-items:center;
+  gap:clamp(20px,3vw,44px);
+  min-height:0;
+  width:100%;
+  margin:0;
+  padding:clamp(28px,4vw,50px) 0;
+  overflow:visible;
+  border-bottom:1px solid var(--line-soft);
+}
+html[data-theme] #inicio .hero-copy {width:100%;min-width:0;max-width:670px}
+html[data-theme] #inicio .hero-copy h1 {
+  width:100%;
+  max-width:15ch;
+  margin:0 0 18px;
+  font-size:clamp(2.2rem,4.15vw,3.55rem);
+  line-height:1.1;
+  letter-spacing:-.045em;
+  font-weight:800;
+  overflow-wrap:normal;
+  word-break:normal;
+}
+html[data-theme] #inicio .hero-copy h1 em {font-style:normal;color:var(--role-accent)}
+html[data-theme] #inicio .hero-copy>p {
+  max-width:54ch;
+  margin:0;
+  color:var(--muted);
+  font-size:clamp(.98rem,1.25vw,1.1rem);
+  line-height:1.65;
+}
+html[data-theme] #inicio .hero-actions {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px;
+  margin:22px 0 0;
+}
+html[data-theme] #inicio .hero-actions button {
+  flex:0 1 auto;
+  width:auto;
+  max-width:100%;
+  min-height:46px;
+  padding:11px 16px;
+  white-space:normal;
+  text-align:center;
+  font-size:.9rem;
+}
+html[data-theme] #inicio .learning-card {
+  width:100%;
+  max-width:460px;
+  min-width:0;
+  margin:0 0 0 auto;
+  padding:clamp(18px,2.2vw,27px);
+  border:1px solid var(--line);
+  border-radius:20px;
+  box-shadow:var(--shadow);
+}
+html[data-theme] #inicio .learning-head {
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  flex-wrap:wrap;
+}
+html[data-theme] #inicio .learning-head span {min-width:0;flex:1 1 160px}
+html[data-theme] #inicio .learning-head strong {
+  display:block;
+  overflow-wrap:anywhere;
+  font-size:clamp(1.03rem,1.5vw,1.3rem);
+  line-height:1.35;
+}
+html[data-theme] #inicio .continue-button {
+  min-height:46px;
+  padding:12px 16px;
+  font-weight:800;
+  border-radius:12px;
+  text-align:center;
+}
+html[data-theme="light"] #inicio .continue-button {background:#6334bb;color:#fff;border-color:#6334bb}
+html[data-theme="dark"] #inicio .continue-button {background:#1d7548;color:#fff;border-color:#289d61}
+html[data-theme] #inicio .dashboard-row {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  margin:20px 0 34px;
+}
+html[data-theme] #inicio .dashboard-row article {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
+  min-height:118px;
+  padding:16px;
+  border:1px solid var(--line-soft);
+  border-radius:15px;
+}
+html[data-theme] #inicio .dashboard-row article > div {min-width:0}
+html[data-theme] #inicio .dashboard-row article :is(small,p) {
+  overflow-wrap:anywhere;
+  line-height:1.45;
+}
+html[data-theme="light"] #inicio .dashboard-row article {
+  background:#fff;
+  border-color:#e4d9f3;
+  box-shadow:inset 3px 0 #6334bb;
+}
+html[data-theme="light"] #inicio .metric-icon {
+  color:#59309e;
+  background:#f0e8ff;
+}
+html[data-theme="dark"] #inicio .dashboard-row article {
+  background:#111713;
+  border-color:#304538;
+  box-shadow:inset 3px 0 #289d61;
+}
+html[data-theme="dark"] #inicio .metric-icon {
+  color:#a8f6c8;
+  background:#1b3827;
+}
+html[data-theme] .sidebar .nav button.active i {
+  color:#ffffff;
+}
+html[data-theme="light"] .sidebar .nav button.active i svg,
+html[data-theme="dark"] .sidebar .nav button.active i svg {
+  stroke:#ffffff;
+}
+html[data-theme] .topbar .search-wrap {
+  width:min(540px,58%);
+  min-width:0;
+}
+html[data-theme] .topbar .search {min-width:0;max-width:100%}
+html[data-theme] .topbar .search input {
+  min-width:0;
+  width:100%;
+  text-overflow:ellipsis;
+}
+@media(max-width:1240px) and (min-width:851px) {
+  html[data-theme] #inicio .hero {grid-template-columns:minmax(0,1.16fr) minmax(290px,.84fr);gap:24px}
+  html[data-theme] #inicio .hero-copy h1 {font-size:clamp(2.1rem,3.8vw,3.15rem);max-width:16ch}
+  html[data-theme] #inicio .dashboard-row {grid-template-columns:repeat(2,minmax(0,1fr))}
+  html[data-theme] #inicio .learning-card {max-width:400px}
+}
+@media(max-width:1030px) {
+  html[data-theme] #inicio .hero {grid-template-columns:minmax(0,1fr);gap:22px;padding:26px 0 32px}
+  html[data-theme] #inicio .hero-copy {max-width:750px}
+  html[data-theme] #inicio .hero-copy h1 {max-width:20ch;font-size:clamp(2.2rem,5.8vw,3.4rem)}
+  html[data-theme] #inicio .learning-card {max-width:100%;margin:0}
+  html[data-theme] #inicio .learning-card .orbit-card {display:none!important}
+}
+@media(max-width:850px) {
+  html[data-theme] .app-shell:not(.is-locked) .main {
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    margin-left:0;
+  }
+  html[data-theme] .app-shell:not(.is-locked) .content {padding-inline:clamp(14px,3vw,24px)}
+  html[data-theme] .topbar .search-wrap {flex:1 1 auto;width:auto}
+}
+@media(max-width:640px) {
+  html[data-theme] #inicio .hero {padding:20px 0 26px}
+  html[data-theme] #inicio .hero-copy h1 {
+    max-width:18ch;
+    font-size:clamp(2rem,8.5vw,2.8rem);
+    letter-spacing:-.035em;
+    line-height:1.13;
+  }
+  html[data-theme] #inicio .hero-copy>p {font-size:1rem}
+  html[data-theme] #inicio .hero-actions {display:grid;grid-template-columns:1fr}
+  html[data-theme] #inicio .hero-actions button {width:100%;flex:none}
+  html[data-theme] #inicio .dashboard-row {grid-template-columns:minmax(0,1fr)}
+  html[data-theme] #inicio .dashboard-row article {min-height:98px}
+  html[data-theme] .topbar .search kbd {display:none}
+}
