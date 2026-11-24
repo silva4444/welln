@@ -45,3 +45,101 @@ html[data-device-mode="mobile"] *,html[data-device-mode="mobile"] *::before,html
 html[data-device-mode="mobile"] :is(.login-screen,.login-visual,.login-panel,.login-card,.sidebar,.topbar,.learning-card,.platform-card){backdrop-filter:none!important;filter:none!important}
 html[data-device-mode="mobile"] .login-orbit{display:none!important}
 html[data-device-mode="mobile"] :is(.login-card,.sidebar,.topbar,.learning-card,.platform-card,.device-chooser-card){box-shadow:none!important}
+
+/* CODA 14.7: identidade global branco/roxo e preto/verde. */
+/* Camada final após todos os imports: os tokens abrangem aluno, professor e admin. */
+html[data-theme="light"] {
+  color-scheme:light;
+  --brand:#6334bb;--bg:#ffffff;--surface:#ffffff;--surface-2:#f7f3ff;--surface-3:#eee7ff;
+  --line:#dcd2f0;--line-soft:#eae3f6;--text:#211533;--muted:#514565;--muted-2:#655775;
+  --lime:#6438b4;--lime-dark:#4f288f;--blue:#5830a2;--purple:#6636b8;--orange:#8750a7;--red:#aa305a;
+  --green:#6438b4;--focus:#6334bb;--role-accent:#6334bb;--role-accent-soft:#f0e8ff;
+  --shadow:0 14px 38px rgba(71,35,126,.08);
+  background:#fff;
+}
+html[data-theme="light"] body,
+html[data-theme="light"] .app-shell{background:#fff;color:var(--text)}
+html[data-theme="light"] body:is(.is-teacher,.is-admin,[data-portal]){--role-accent:#6334bb;--role-accent-soft:#f0e8ff}
+html[data-theme="light"] :is(.topbar,.sidebar,.platform-card,.learning-card,.course-card,.teacher-editor,.admin-card,.lesson-reader,.esp-panel,.three-d-programmer,.student-review-panel,.student-competency-card,.teacher-dashboard article,.teacher-quick-card,.dashboard-row article,.ask-card,.post,.quiz-shell,.player-shell,.video-queue){
+  background:#fff;border-color:var(--line-soft);color:var(--text)
+}
+html[data-theme="light"] :is(input,select,textarea,.topbar .search,.subnav button,.lt-tabs button,.xr-experience-picker button){
+  background:#fff;border-color:var(--line);color:var(--text)
+}
+html[data-theme="light"] :is(input,textarea)::placeholder{color:#665878}
+html[data-theme="light"] :is(.sidebar .nav button.active,.subnav button.active,.lt-tabs button.active,.primary,.login-card .primary){background:#6334bb;border-color:#6334bb;color:#fff}
+html[data-theme="light"] :is(.sidebar .nav button:hover,.secondary:hover,.subnav button:hover){background:#f3edff;color:#49228b}
+html[data-theme="light"] .login-screen,
+html[data-theme="light"] body.teacher-login .login-screen,
+html[data-theme="light"] body.admin-login .login-screen{
+  --login-accent:#6334bb;--auth-ink:#2a164a;--auth-white:#fff;
+  background:#fff;color:#2a164a
+}
+html[data-theme="light"] .login-screen :is(.login-panel,.login-card){background:#fff;color:#2a164a}
+html[data-theme="light"] .login-screen .login-visual{
+  background:linear-gradient(145deg,#432078,#794ac9);color:#fff;border-color:#7341b5
+}
+html[data-theme="light"] .login-screen .login-card input:not([type="checkbox"]){background:#fff;color:#2a164a;border-color:#d2c3eb}
+html[data-theme="light"] .login-screen :is(.portal-switch,.login-mode-switch){background:#f2ebff;border-color:#d8c8f0}
+html[data-theme="light"] .login-screen :is(.portal-switch,.login-mode-switch) button.active{background:#6334bb;color:#fff}
+html[data-theme="light"] .device-chooser{background:#fff}
+html[data-theme="light"] .device-chooser-card{background:#fff;color:#211533;border-color:#dcd2f0}
+html[data-theme="light"] .device-chooser-options button{background:#f8f5ff;color:#211533;border-color:#ded2f2}
+html[data-theme="light"] .device-chooser-options button:hover{background:#f0e7ff;border-color:#6334bb}
+html[data-theme="light"] .device-chooser-logo{background:#6334bb}
+html[data-theme="light"] .device-switcher{background:#fff;color:#4d2788;border-color:#dcd2f0}
+
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --brand:#27b875;--bg:#090b0a;--surface:#111713;--surface-2:#17221b;--surface-3:#1d2b22;
+  --line:#304538;--line-soft:#26392e;--text:#edf9f0;--muted:#b4cbbb;--muted-2:#9cb8a5;
+  --lime:#39d98a;--lime-dark:#24b36d;--blue:#40ce90;--purple:#52d99a;--orange:#d7b77e;--red:#ff8f98;
+  --green:#39d98a;--focus:#39d98a;--role-accent:#39d98a;--role-accent-soft:#1b3526;
+  --shadow:0 16px 42px rgba(0,0,0,.42);
+  background:#090b0a;
+}
+html[data-theme="dark"] body,
+html[data-theme="dark"] .app-shell{background:#090b0a;color:var(--text)}
+html[data-theme="dark"] body:is(.is-teacher,.is-admin,[data-portal]){--role-accent:#39d98a;--role-accent-soft:#1b3526}
+html[data-theme="dark"] :is(.topbar,.sidebar,.platform-card,.learning-card,.course-card,.teacher-editor,.admin-card,.lesson-reader,.esp-panel,.three-d-programmer,.student-review-panel,.student-competency-card,.teacher-dashboard article,.teacher-quick-card,.dashboard-row article,.ask-card,.post,.quiz-shell,.player-shell,.video-queue){
+  background:var(--surface);border-color:var(--line-soft);color:var(--text)
+}
+html[data-theme="dark"] :is(input,select,textarea,.topbar .search,.subnav button,.lt-tabs button,.xr-experience-picker button){
+  background:var(--surface-2);border-color:var(--line);color:var(--text)
+}
+html[data-theme="dark"] :is(input,textarea)::placeholder{color:#b4cbbb}
+html[data-theme="dark"] :is(.sidebar .nav button.active,.subnav button.active,.lt-tabs button.active,.primary,.login-card .primary){
+  background:#238b59;border-color:#2bbf77;color:#fff
+}
+html[data-theme="dark"] :is(.sidebar .nav button:hover,.secondary:hover,.subnav button:hover){background:#1a3526;color:#b4f8d1}
+html[data-theme="dark"] .login-screen,
+html[data-theme="dark"] body.teacher-login .login-screen,
+html[data-theme="dark"] body.admin-login .login-screen{
+  --login-accent:#2bbf77;--auth-ink:#edf9f0;--auth-white:#111713;
+  background:#090b0a;color:#edf9f0
+}
+html[data-theme="dark"] .login-screen .login-visual,
+html[data-theme="dark"] body.teacher-login .login-screen .login-visual,
+html[data-theme="dark"] body.admin-login .login-screen .login-visual{
+  background:linear-gradient(145deg,#050906,#102b1b);color:#effff4;border-color:#315c41
+}
+html[data-theme="dark"] .login-screen :is(.login-panel,.login-card){background:#101713;color:#edf9f0;border-color:#31513c}
+html[data-theme="dark"] .login-screen .login-card :is(h2,label,small,p){color:#e6f8eb}
+html[data-theme="dark"] .login-screen .login-brand b{background:#2bbf77!important;color:#06150c!important}
+html[data-theme="dark"] .login-screen .login-copy :is(h1,h1 em,p){color:#f0fff5!important}
+html[data-theme="dark"] .login-screen .login-card input:not([type="checkbox"]){background:#19261d;color:#f2fff5;border-color:#385a43}
+html[data-theme="dark"] .login-screen :is(.portal-switch,.login-mode-switch){background:#1a2920;border-color:#38533f}
+html[data-theme="dark"] .login-screen :is(.portal-switch,.login-mode-switch) button{color:#d9f5e2}
+html[data-theme="dark"] .login-screen :is(.portal-switch,.login-mode-switch) button.active{background:#238b59;color:#fff}
+html[data-theme="dark"] .login-screen .login-error{background:#321b22;color:#ffe8ed;border-color:#a94d5e}
+html[data-theme="dark"] .device-chooser{background:#090b0a}
+html[data-theme="dark"] .device-chooser-card{background:#111713;color:#edf9f0;border-color:#304538}
+html[data-theme="dark"] .device-chooser-card :is(p,small),html[data-theme="dark"] .device-chooser-options span{color:#b4cbbb}
+html[data-theme="dark"] .device-chooser-options button{background:#18251d;color:#edf9f0;border-color:#304538}
+html[data-theme="dark"] .device-chooser-options button:hover{background:#213f2c;border-color:#39d98a}
+html[data-theme="dark"] .device-chooser-logo{background:#238b59}
+html[data-theme="dark"] .device-switcher{background:#152119;color:#d7fbe2;border-color:#315740}
+html[data-theme] :is(.primary,.secondary,.subnav button,.nav button,.lt-tabs button):focus-visible{
+  outline:3px solid var(--role-accent);outline-offset:2px
+}
+/* Editores e visualizadores 3D conservam o contraste técnico necessário. */
