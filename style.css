@@ -424,7 +424,7 @@ html[data-theme] #inicio .hero {
 html[data-theme] #inicio .hero-copy {width:100%;min-width:0;max-width:670px}
 html[data-theme] #inicio .hero-copy h1 {
   width:100%;
-  max-width:15ch;
+  max-width:100%;
   margin:0 0 18px;
   font-size:clamp(2.2rem,4.15vw,3.55rem);
   line-height:1.1;
@@ -548,7 +548,7 @@ html[data-theme] .topbar .search input {
 }
 @media(max-width:1240px) and (min-width:851px) {
   html[data-theme] #inicio .hero {grid-template-columns:minmax(0,1.16fr) minmax(290px,.84fr);gap:24px}
-  html[data-theme] #inicio .hero-copy h1 {font-size:clamp(2.1rem,3.8vw,3.15rem);max-width:16ch}
+  html[data-theme] #inicio .hero-copy h1 {font-size:clamp(2.1rem,3.8vw,3.15rem);max-width:100%}
   html[data-theme] #inicio .dashboard-row {grid-template-columns:repeat(2,minmax(0,1fr))}
   html[data-theme] #inicio .learning-card {max-width:400px}
 }
